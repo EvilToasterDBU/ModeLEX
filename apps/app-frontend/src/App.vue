@@ -2217,7 +2217,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 			>
 				<video
 					v-if="modlexGlobalBackgroundShouldPlayVideo"
-					:src="modlexGlobalBackgroundPreviewUrl!"
+					:src="modlexGlobalBackgroundPreviewUrl"
 					autoplay
 					loop
 					muted
@@ -2227,7 +2227,7 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 				/>
 				<img
 					v-else-if="modlexGlobalBackgroundShouldShowImage"
-					:src="modlexGlobalBackgroundPreviewUrl!"
+					:src="modlexGlobalBackgroundPreviewUrl"
 					alt=""
 					class="h-full w-full object-cover"
 					:style="{ filter: `blur(${modlexGlobalBackgroundBlurPx}px)` }"

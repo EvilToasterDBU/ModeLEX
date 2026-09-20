@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>ModLEX wallpaper — 3D куб</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Пример: 3D-куб (чистая математика на canvas, без библиотек), поворачивается за
+// курсором. Для настоящего 3D положи three.js прямо в файл — сеть обоям недоступна.
+const canvas = document.getElementById('c')
+const ctx = canvas.getContext('2d')
+let W = innerWidth, H = innerHeight
+const state = { paused: false, fpsLimit: 60, accent: '#a78bfa' }
+const target = { x: 0.4, y: 0.6 }
+const rot = { x: 0.4, y: 0.6 }
+
+function resize(w, h) {
+  const dpr = window.devicePixelRatio || 1
+  W = w || innerWidth; H = h || innerHeight
+  canvas.width = W * dpr; canvas.height = H * dpr
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+}
+resize()
+
+window.addEventListener('message', (e) => {
+  const m = e.data
+  if (!m || m.source !== 'modlex') return
+  if (m.type === 'resize') resize(m.width, m.height)
+  else if (m.type === 'state') { state.paused = m.paused; state.fpsLimit = m.fpsLimit || 60 }
+  else if (m.type === 'theme' && m.accentColor) state.accent = m.accentColor
+  else if (m.type === 'pointer' && m.kind === 'move') {
+    target.y = (m.x / m.width - 0.5) * 4
+    target.x = (m.y / m.height - 0.5) * 4
+  }
+})
+
+const V = []
+for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) V.push([x, y, z])
+const E = []
+for (let i = 0; i < 8; i++) for (let j = i + 1; j < 8; j++) {
+  const d = V[i].reduce((s, v, k) => s + (v !== V[j][k] ? 1 : 0), 0)
+  if (d === 1) E.push([i, j])
+}
+
+function project([x, y, z]) {
+  let c = Math.cos(rot.x), s = Math.sin(rot.x)
+  let y1 = y * c - z * s, z1 = y * s + z * c
+  c = Math.cos(rot.y); s = Math.sin(rot.y)
+  const x2 = x * c + z1 * s, z2 = -x * s + z1 * c
+  const k = 3.2 / (3.2 + z2 + 2)
+  const size = Math.min(W, H) * 0.22
+  return [W / 2 + x2 * size * k, H / 2 + y1 * size * k]
+}
+
+let last = 0
+function frame(t) {
+  requestAnimationFrame(frame)
+  if (state.paused) return
+  if (t - last < 1000 / state.fpsLimit) return
+  last = t
+  target.y += 0.004
+  rot.x += (target.x - rot.x) * 0.06
+  rot.y += (target.y - rot.y) * 0.06
+  ctx.clearRect(0, 0, W, H)
+  ctx.strokeStyle = state.accent
+  ctx.lineWidth = 2
+  ctx.lineJoin = 'round'
+  ctx.beginPath()
+  for (const [a, b] of E) {
+    const [x1, y1] = project(V[a]), [x2, y2] = project(V[b])
+    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2)
+  }
+  ctx.stroke()
+}
+requestAnimationFrame(frame)
+</script>
+</body>
+</html>

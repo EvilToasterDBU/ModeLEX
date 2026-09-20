@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>ModLEX wallpaper — снег</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Пример HTML-обоев для ModLEX: снег, который отталкивается от курсора.
+// Всё в одном файле, без сети — так и должны выглядеть обои.
+const canvas = document.getElementById('c')
+const ctx = canvas.getContext('2d')
+let W = 0, H = 0
+const state = { paused: false, fpsLimit: 60, accent: '#ffffff' }
+const mouse = { x: -9999, y: -9999, down: false }
+const flakes = []
+const COUNT = 220
+
+function resize(w, h) {
+  const dpr = window.devicePixelRatio || 1
+  W = w || innerWidth; H = h || innerHeight
+  canvas.width = W * dpr; canvas.height = H * dpr
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+}
+resize()
+for (let i = 0; i < COUNT; i++) {
+  flakes.push({ x: Math.random() * W, y: Math.random() * H, r: 1 + Math.random() * 2.6,
+    vy: 0.4 + Math.random() * 1.1, vx: 0, sway: Math.random() * Math.PI * 2 })
+}
+
+// API лаунчера: сообщения приходят от родителя, всё остальное игнорируем.
+window.addEventListener('message', (e) => {
+  const m = e.data
+  if (!m || m.source !== 'modlex') return
+  if (m.type === 'resize') resize(m.width, m.height)
+  else if (m.type === 'state') { state.paused = m.paused; state.fpsLimit = m.fpsLimit || 60 }
+  else if (m.type === 'theme' && m.accentColor) state.accent = m.accentColor
+  else if (m.type === 'pointer') {
+    mouse.x = m.x; mouse.y = m.y
+    if (m.kind === 'down') mouse.down = true
+    if (m.kind === 'up') mouse.down = false
+  }
+})
+
+let last = 0
+function frame(t) {
+  requestAnimationFrame(frame)
+  if (state.paused) return
+  if (t - last < 1000 / state.fpsLimit) return
+  last = t
+  ctx.clearRect(0, 0, W, H)
+  ctx.fillStyle = 'rgba(255,255,255,0.9)'
+  for (const f of flakes) {
+    f.sway += 0.02
+    const dx = f.x - mouse.x, dy = f.y - mouse.y
+    const d2 = dx * dx + dy * dy
+    if (d2 < 140 * 140) {
+      const d = Math.sqrt(d2) || 1
+      const push = (1 - d / 140) * (mouse.down ? 9 : 3)
+      f.vx += (dx / d) * push * 0.3
+    }
+    f.vx *= 0.95
+    f.x += f.vx + Math.sin(f.sway) * 0.4
+    f.y += f.vy
+    if (f.y > H + 5) { f.y = -5; f.x = Math.random() * W }
+    if (f.x < -5) f.x = W + 5
+    if (f.x > W + 5) f.x = -5
+    ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2); ctx.fill()
+  }
+}
+requestAnimationFrame(frame)
+</script>
+</body>
+</html>

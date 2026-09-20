@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>ModLEX wallpaper — карточки как бумага в воздухе</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Пример инструментов для авторов: обои сами решают, как карточки лаунчера реагируют на курсор.
+// Здесь — «висящий в воздухе листок»: задел у края наклоняет карточку от курсора, с пружиной.
+// Ничего из этого не встроено в лаунчер как готовый эффект: лаунчер лишь отдаёт прямоугольники
+// карточек (`cards`) и принимает ограниченные наклоны (`card-transforms`).
+const canvas = document.getElementById('c')
+const ctx = canvas.getContext('2d')
+let W = innerWidth, H = innerHeight
+const state = { paused: false, fpsLimit: 60 }
+const pointer = { x: -9999, y: -9999 }
+let cards = []
+const tilt = new Map() // id -> { rx, ry, vx, vy }
+
+const send = (msg) => parent.postMessage({ source: 'modlex-wallpaper', ...msg }, '*')
+
+// 1) Подписка на данные о карточках (без неё лаунчер ничего не считает)
+send({ type: 'subscribe', cards: true })
+// 2) Подсказка раскладки главной (пользователь может её выключить одним тумблером)
+send({ type: 'layout', layout: { cardSize: 'medium', showLibrarySearch: true } })
+// 3) Палитра для «Акцент/тема под обои» — пиксели HTML-обоев лаунчер прочитать не может
+send({ type: 'palette', accent: '#7dd3fc' })
+
+function resize(w, h) {
+  const dpr = devicePixelRatio || 1
+  W = w || innerWidth; H = h || innerHeight
+  canvas.width = W * dpr; canvas.height = H * dpr
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+}
+resize()
+
+addEventListener('message', (e) => {
+  const m = e.data
+  if (!m || m.source !== 'modlex') return
+  if (m.type === 'resize') resize(m.width, m.height)
+  else if (m.type === 'state') { state.paused = m.paused; state.fpsLimit = m.fpsLimit || 60 }
+  else if (m.type === 'pointer' && m.kind === 'move') { pointer.x = m.x; pointer.y = m.y }
+  else if (m.type === 'cards') cards = m.cards
+})
+
+let last = performance.now()
+function frame(now) {
+  requestAnimationFrame(frame)
+  if (state.paused) return
+  const dt = Math.min(0.05, (now - last) / 1000); last = now
+
+  ctx.clearRect(0, 0, W, H)
+  const g = ctx.createRadialGradient(pointer.x, pointer.y, 0, pointer.x, pointer.y, 220)
+  g.addColorStop(0, 'rgba(125,211,252,.18)'); g.addColorStop(1, 'rgba(125,211,252,0)')
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H)
+
+  const items = []
+  for (const c of cards) {
+    const t = tilt.get(c.id) || { rx: 0, ry: 0, vx: 0, vy: 0 }
+    tilt.set(c.id, t)
+    // цель: курсор внутри карточки — наклон от курсора (чем ближе к краю, тем сильнее)
+    let tx = 0, ty = 0
+    if (pointer.x >= c.x && pointer.x <= c.x + c.w && pointer.y >= c.y && pointer.y <= c.y + c.h) {
+      const nx = (pointer.x - (c.x + c.w / 2)) / (c.w / 2)
+      const ny = (pointer.y - (c.y + c.h / 2)) / (c.h / 2)
+      ty = nx * 10; tx = -ny * 10
+    }
+    // пружина
+    t.vx += ((tx - t.rx) * 120 - t.vx * 14) * dt; t.rx += t.vx * dt
+    t.vy += ((ty - t.ry) * 120 - t.vy * 14) * dt; t.ry += t.vy * dt
+    if (Math.abs(t.rx) > 0.01 || Math.abs(t.ry) > 0.01 || tx || ty)
+      items.push({ id: c.id, rx: t.rx, ry: t.ry, tz: 0, s: 1 })
+  }
+  if (items.length) send({ type: 'card-transforms', items })
+}
+requestAnimationFrame(frame)
+</script>
+</body>
+</html>

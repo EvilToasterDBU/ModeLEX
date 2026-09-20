@@ -215,6 +215,7 @@ import { computed, reactive, ref, watch } from 'vue'
 // не шлёт CORS-заголовки, локальный ассет от этого не зависит вообще.
 import steveSkinAsset from '@/assets/skins/steve.png'
 import { get_account_skin_texture_url } from '@/helpers/auth'
+import { getSteveHeadUrl } from '@/helpers/modlex-steve-head'
 import { getPlayerHeadUrl } from '@/helpers/rendering/batch-skin-renderer.ts'
 import type { Skin } from '@/helpers/skins'
 
@@ -361,24 +362,11 @@ const kindLabels = {
 } as const
 
 // ModLEX: steveSkinAsset is the full skin sheet, not a head crop — see the
-// same fix + comment in AccountsCard.vue.
+// same fix + comment in modlex-steve-head.ts.
 const STEVE_HEAD_URL = ref<string>(steveSkinAsset)
-getPlayerHeadUrl({
-	texture_key: 'steve-fallback',
-	name: null,
-	section: null,
-	variant: 'CLASSIC',
-	cape_id: null,
-	texture: steveSkinAsset,
-	source: 'default',
-	is_equipped: false,
-} as Skin)
-	.then((url) => {
-		STEVE_HEAD_URL.value = url
-	})
-	.catch((error) => {
-		console.warn('Failed to render local Steve head fallback', error)
-	})
+getSteveHeadUrl().then((url) => {
+	STEVE_HEAD_URL.value = url
+})
 
 // ModLEX: Ely.by-аккаунты несут реальный скин (см. AccountsCard.vue), просто
 // не в Credentials.profile — раньше здесь ошибочно объединялись с Offline и

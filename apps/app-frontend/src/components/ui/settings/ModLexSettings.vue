@@ -1,13 +1,47 @@
 <template>
-	<div class="flex flex-col gap-6">
+	<div ref="rootEl" class="flex flex-col gap-6">
+		<div class="settings-search sticky top-0 z-30 -mx-6 bg-bg-raised px-6 pb-2 pt-3">
+			<div v-if="modlexSettingsSearchVisible" class="flex items-center gap-2">
+				<input
+					v-model="searchQuery"
+					type="search"
+					class="console-text-input min-w-0 flex-1"
+					placeholder="Поиск: тема, обои, курсфордж, дискорд…"
+					autocomplete="off"
+					spellcheck="false"
+				/>
+				<Button
+					v-tooltip="'Скрыть поиск'"
+					type="outlined"
+					size="sm"
+					native-type="button"
+					@click="hideSearch"
+				>
+					<XIcon aria-hidden="true" />
+				</Button>
+			</div>
+			<div v-else class="flex justify-end">
+				<Button
+					type="outlined"
+					size="sm"
+					native-type="button"
+					@click="modlexSettingsSearchVisible = true"
+				>
+					<SearchIcon aria-hidden="true" /> Поиск
+				</Button>
+			</div>
+		</div>
+		<p v-if="searchQuery.trim() && searchEmpty" class="settings-section__desc">
+			Ничего не нашли по «{{ searchQuery.trim() }}». Попробуйте другое слово — например «тема», «обои» или «кнопки».
+		</p>
 		<Transition name="settings-notice-fade">
-			<div v-if="inlineNotice" class="settings-notice sticky top-2 z-20 mx-auto">
+			<div v-if="inlineNotice" class="settings-notice sticky top-16 z-20 mx-auto">
 				{{ inlineNotice }}
 			</div>
 		</Transition>
 
 		<!-- Внешний вид -->
-		<div class="settings-section">
+		<div class="settings-section" data-settings-anchor="appearance" data-settings-keywords="внешний вид интерфейс оформление панель панели стекло стеклянный прозрачность прозрачные размытие блюр скрыть убрать вкладка серверы сервера музыка агент ии друзья правая панель плашка аккаунт боковое меню сайдбар" data-settings-label="Внешний вид">
 			<h2 class="settings-section__title">Внешний вид</h2>
 			<div class="setting-row">
 				<div class="setting-row__info">
@@ -47,7 +81,7 @@
 					<p class="setting-row__desc">
 						Панель (аккаунт, друзья, новости) полностью прячется, вместо неё — компактная плашка
 						текущего аккаунта в углу. На странице модов панель вместо этого превращается в узкую
-						полоску сбоку и выезжает целиком при наведении — там нужны фильтры категорий.
+						полоску сбоку и выезжает целиком при наведении — там фильтры категорий.
 					</p>
 				</div>
 				<Toggle v-model="modlexHideRightSidebar" />
@@ -66,20 +100,45 @@
 					<h3 class="setting-row__label">Эффект стекла</h3>
 					<p class="setting-row__desc">
 						Полупрозрачный фон с блюром вместо сплошного — для плашки аккаунта и
-						полоски-подглядывания на Discover.
+						полоски-подглядывания на различных вкладках.
 					</p>
 				</div>
 				<Toggle v-model="modlexFloatingGlassEffect" />
 			</div>
+			<div class="setting-row">
+				<div class="setting-row__info">
+					<h3 class="setting-row__label">Стекло для левой панели и верхней полоски</h3>
+					<p class="setting-row__desc">
+						Эффект стекла для панели — эффект заметен, когда задан свой фон лаунчера.
+					</p>
+				</div>
+				<Toggle v-model="modlexNavGlassEnabled" />
+			</div>
+			<div v-if="modlexNavGlassEnabled" class="setting-row">
+				<div class="setting-row__info">
+					<h3 class="setting-row__label">Непрозрачность панелей</h3>
+				</div>
+				<div class="modlex-slider">
+					<Slider v-model="modlexNavGlassOpacityPct" :min="15" :max="100" :step="5" unit="%" />
+				</div>
+			</div>
+			<div v-if="modlexNavGlassEnabled" class="setting-row">
+				<div class="setting-row__info">
+					<h3 class="setting-row__label">Размытие за панелями</h3>
+				</div>
+				<div class="modlex-slider">
+					<Slider v-model="modlexNavGlassBlur" :min="0" :max="40" :step="1" unit="px" />
+				</div>
+			</div>
 		</div>
 
 		<!-- Акцентный цвет -->
-		<div class="settings-section">
+		<div class="settings-section" data-settings-anchor="colors" data-settings-keywords="цвет цвета акцент акцентный вся тема автотема подстройка авто автоцвет под обои тема темы оформление тёмная светлая тёмный светлый кнопки текст иконки иконка фон обводка граница рамка код темы поделиться экспорт импорт скопировать" data-settings-label="Цвета">
 			<h2 class="settings-section__title">Акцентный цвет</h2>
 			<p class="settings-section__desc">
 				Свой цвет вместо стандартного фиолетового — кнопки, ссылки, выделения.
 			</p>
-			<div class="setting-row">
+			<div class="setting-row" :class="{ 'modlex-locked': modlexAutoThemeFromWallpaper || modlexAutoAccentFromWallpaper }" :inert="modlexAutoThemeFromWallpaper || modlexAutoAccentFromWallpaper">
 				<div class="setting-row__info">
 					<h3 class="setting-row__label">Цвет</h3>
 					<p class="setting-row__desc">
@@ -103,6 +162,31 @@
 					>
 				</div>
 			</div>
+			<div class="setting-row">
+				<div class="setting-row__info">
+					<h3 class="setting-row__label">Адаптивные цвета темы под обои (тест)</h3>
+					<p class="setting-row__desc">
+						Акцент, фон, панели, разделители, текст и иконки подстраиваются под цвета обоев.
+					</p>
+				</div>
+				<Toggle v-model="modlexAutoThemeFromWallpaper" />
+			</div>
+			<div class="setting-row" :class="{ 'modlex-locked': modlexAutoThemeFromWallpaper }" :inert="modlexAutoThemeFromWallpaper">
+				<div class="setting-row__info">
+					<h3 class="setting-row__label">Адаптивный цвет акцента (тест)</h3>
+					<p class="setting-row__desc">
+						Цвет акцента берётся из фона лаунчера. Работает с картинкой, GIF и видео
+						<template v-if="modlexAutoAccentFromWallpaper">
+							{{
+								modlexWallpaperAccent
+									? 'Сейчас: ' + modlexWallpaperAccent
+									: 'Цвет из этих обоев вытащить не получилось.'
+							}}
+						</template>
+					</p>
+				</div>
+				<Toggle v-model="modlexAutoAccentFromWallpaper" />
+			</div>
 
 			<Button
 				type="outlined"
@@ -119,7 +203,7 @@
 					Тонкая настройка цветов интерфейса. Пустой цвет = стандартный цвет темы.
 				</p>
 
-				<div class="setting-row">
+				<div class="setting-row" :class="{ 'modlex-locked': modlexAutoThemeFromWallpaper }" :inert="modlexAutoThemeFromWallpaper">
 					<div class="setting-row__info">
 						<h3 class="setting-row__label">Фон</h3>
 						<p class="setting-row__desc">
@@ -145,7 +229,7 @@
 					</div>
 				</div>
 
-				<div class="setting-row">
+				<div class="setting-row" :class="{ 'modlex-locked': modlexAutoThemeFromWallpaper }" :inert="modlexAutoThemeFromWallpaper">
 					<div class="setting-row__info">
 						<h3 class="setting-row__label">Панели и карточки</h3>
 						<p class="setting-row__desc">
@@ -171,7 +255,7 @@
 					</div>
 				</div>
 
-				<div class="setting-row">
+				<div class="setting-row" :class="{ 'modlex-locked': modlexAutoThemeFromWallpaper }" :inert="modlexAutoThemeFromWallpaper">
 					<div class="setting-row__info">
 						<h3 class="setting-row__label">Текст</h3>
 						<p class="setting-row__desc">
@@ -211,9 +295,9 @@
 					<input v-model="modlexTextOutlineColor" type="color" class="color-picker" />
 				</div>
 
-				<div class="setting-row">
+				<div class="setting-row" :class="{ 'modlex-locked': modlexAutoThemeFromWallpaper }" :inert="modlexAutoThemeFromWallpaper">
 					<div class="setting-row__info">
-						<h3 class="setting-row__label">Иконки бокового меню</h3>
+						<h3 class="setting-row__label">Иконки</h3>
 						<p class="setting-row__desc">
 							{{ modlexIconColor ? modlexIconColor : 'Стандартный цвет темы' }}
 						</p>
@@ -236,7 +320,7 @@
 					</div>
 				</div>
 
-				<div class="setting-row">
+				<div class="setting-row" :class="{ 'modlex-locked': modlexAutoThemeFromWallpaper }" :inert="modlexAutoThemeFromWallpaper">
 					<div class="setting-row__info">
 						<h3 class="setting-row__label">Разделители и края</h3>
 						<p class="setting-row__desc">
@@ -265,7 +349,7 @@
 					<div class="setting-row__info">
 						<h3 class="setting-row__label">Двойная обводка</h3>
 						<p class="setting-row__desc">
-							Доп. кольцо поверх краёв и разделителей — например, белая внутренняя и чёрная внешняя
+							Дополнительные обводки поверх краёв и разделителей — например, белая внутренняя и чёрная внешняя
 							линия.
 						</p>
 					</div>
@@ -296,7 +380,7 @@
 				<div class="setting-row">
 					<div class="setting-row__info">
 						<h3 class="setting-row__label">Код темы</h3>
-						<p class="setting-row__desc">Сохрани или перешли всю раскраску одной строкой.</p>
+						<p class="setting-row__desc">Сохрани или импортируй всю раскраску одной строкой.</p>
 					</div>
 					<Button type="outlined" size="sm" native-type="button" @click="copyThemeCode"
 						>Скопировать код</Button
@@ -319,23 +403,121 @@
 			</div>
 		</div>
 
+		<!-- Главная страница -->
+		<div class="settings-section" data-settings-anchor="home" data-settings-keywords="главная главный экран домашняя страница jump in недавние последние библиотека карточки размер маленькие крупные компактные поиск фильтры скрыть инстанс сборки сборка код раскладки" data-settings-label="Главная страница">
+			<h2 class="settings-section__title">Главная страница</h2>
+			<p class="settings-section__desc">
+				Что показывать и какого размера. Отдельные инстансы
+				можно скрыть с помощю ПКМ — «Скрыть с главной».
+			</p>
+			<div v-if="modlexWallpaperLayoutHint" class="setting-row">
+				<div class="setting-row__info">
+					<h3 class="setting-row__label">Раскладка из обоев</h3>
+					<p class="setting-row__desc">
+						Эти обои предлагают свою раскладку главной
+					</p>
+				</div>
+				<Toggle v-model="modlexUseWallpaperLayout" />
+			</div>
+			<div class="setting-row" :class="{ 'modlex-locked': modlexWallpaperLayoutActive }" :inert="modlexWallpaperLayoutActive">
+				<div class="setting-row__info">
+					<h3 class="setting-row__label">Блок «Jump in»</h3>
+				</div>
+				<Toggle v-model="modlexHomeShowJumpIn" />
+			</div>
+			<div v-if="modlexHomeShowJumpIn" class="setting-row" :class="{ 'modlex-locked': modlexWallpaperLayoutActive }" :inert="modlexWallpaperLayoutActive">
+				<div class="setting-row__info">
+					<h3 class="setting-row__label">Размер строк «Jump in»</h3>
+				</div>
+				<select v-model="modlexHomeJumpInSize" class="console-text-input">
+					<option value="normal">Обычные</option>
+					<option value="compact">Компактные</option>
+				</select>
+			</div>
+			<div class="setting-row" :class="{ 'modlex-locked': modlexWallpaperLayoutActive }" :inert="modlexWallpaperLayoutActive">
+				<div class="setting-row__info">
+					<h3 class="setting-row__label">Блок «Библиотека»</h3>
+				</div>
+				<Toggle v-model="modlexHomeShowLibrary" />
+			</div>
+			<div v-if="modlexHomeShowLibrary" class="setting-row" :class="{ 'modlex-locked': modlexWallpaperLayoutActive }" :inert="modlexWallpaperLayoutActive">
+				<div class="setting-row__info">
+					<h3 class="setting-row__label">Панель поиска и фильтров библиотеки</h3>
+					<p class="setting-row__desc">
+						Вместе с ней прячутся кнопки «Новая группа» и «Новый инстанс» — создать инстанс можно
+						кнопкой «+» слева или правым кликом ПКМ по фону.
+					</p>
+				</div>
+				<Toggle v-model="modlexHomeShowLibrarySearch" />
+			</div>
+			<div v-if="modlexHomeShowLibrary" class="setting-row" :class="{ 'modlex-locked': modlexWallpaperLayoutActive }" :inert="modlexWallpaperLayoutActive">
+				<div class="setting-row__info">
+					<h3 class="setting-row__label">Размер карточек библиотеки</h3>
+				</div>
+				<select v-model="modlexHomeCardSize" class="console-text-input">
+					<option value="small">Маленькие</option>
+					<option value="medium">Средние</option>
+					<option value="large">Крупные</option>
+				</select>
+			</div>
+			<div class="setting-row">
+				<div class="setting-row__info">
+					<h3 class="setting-row__label">Код раскладки</h3>
+					<p class="setting-row__desc">
+						Размеры и видимость блоков одной строкой — можно экспортировать и переслать
+					</p>
+				</div>
+				<Button type="outlined" size="sm" native-type="button" @click="copyLayoutCode"
+					>Скопировать код</Button
+				>
+			</div>
+			<div class="setting-row">
+				<input
+					v-model="importLayoutCodeInput"
+					type="text"
+					class="console-text-input flex-1"
+					placeholder="Вставь код раскладки сюда"
+					autocomplete="off"
+					spellcheck="false"
+				/>
+				<Button type="outlined" size="sm" native-type="button" @click="applyLayoutCodeInput"
+					>Применить</Button
+				>
+			</div>
+		</div>
+
 		<!-- Фон лаунчера -->
-		<div class="settings-section">
+		<div class="settings-section" data-settings-anchor="background" data-settings-keywords="фон обои wallpaper видео гиф gif картинка изображение html анимация размытие блюр прозрачность живые обои заставка" data-settings-label="Фон">
 			<h2 class="settings-section__title">Фон лаунчера</h2>
 			<p class="settings-section__desc">
-				Картинка, GIF или видео позади главного экрана (Home/Library). Без ограничений на размер
-				файла — только предупреждение, если файл тяжёлый.
+				Картинка, GIF, видео или HTML-страница (интерактивные обои) на заднем фоне лаунчера
 			</p>
 
 			<div v-if="globalBackgroundPreviewUrl" class="bg-preview">
+				<div
+					v-if="globalBackgroundIsHtml"
+					class="bg-preview__media flex items-center justify-center text-sm text-secondary"
+				>
+					HTML-обои — результат виден на главной
+				</div>
 				<video
-					v-if="globalBackgroundIsVideo"
-					:src="globalBackgroundPreviewUrl"
-					autoplay
-					loop
+					v-else-if="globalBackgroundIsVideo"
+					ref="bgPreviewVideo"
+					:src="`${globalBackgroundPreviewUrl}#t=0.1`"
+					preload="metadata"
 					muted
 					playsinline
 					class="bg-preview__media"
+					@loadedmetadata="onPreviewMeta"
+				/>
+				<GifCanvas
+					v-else-if="globalBackgroundIsGif && gifTimelineSupported"
+					:url="globalBackgroundPreviewUrl"
+					:playing="false"
+					:still-at="gifPreviewAt"
+					:max-size="640"
+					class="bg-preview__media"
+					@failed="gifPreviewFailed = true"
 				/>
 				<img v-else :src="globalBackgroundPreviewUrl" alt="" class="bg-preview__media" />
 			</div>
@@ -343,7 +525,7 @@
 			<div class="setting-row">
 				<div class="setting-row__info">
 					<h3 class="setting-row__label">Файл фона</h3>
-					<p class="setting-row__desc">Изображение, GIF или видео (mp4/webm).</p>
+					<p class="setting-row__desc">Изображение, GIF, видео (mp4/webm) или один самодостаточный .html.</p>
 				</div>
 				<div class="flex items-center gap-2">
 					<Button
@@ -373,35 +555,37 @@
 					<div class="setting-row__info">
 						<h3 class="setting-row__label">Непрозрачность</h3>
 					</div>
-					<input
-						type="range"
-						min="0"
-						max="1"
-						step="0.05"
-						:value="modlexGlobalBackgroundOpacity"
-						class="bg-slider"
-						@input="onOpacityInput"
-					/>
+					<div class="modlex-slider">
+						<Slider
+							:model-value="Math.round(modlexGlobalBackgroundOpacity * 100)"
+							:min="0"
+							:max="100"
+							:step="5"
+							unit="%"
+							@update:model-value="onOpacityChange"
+						/>
+					</div>
 				</div>
 				<div class="setting-row">
 					<div class="setting-row__info">
 						<h3 class="setting-row__label">Блюр</h3>
 					</div>
-					<input
-						type="range"
-						min="0"
-						max="30"
-						step="1"
-						:value="modlexGlobalBackgroundBlurPx"
-						class="bg-slider"
-						@input="onBlurInput"
-					/>
+					<div class="modlex-slider">
+						<Slider
+							:model-value="modlexGlobalBackgroundBlurPx"
+							:min="0"
+							:max="30"
+							:step="1"
+							unit="px"
+							@update:model-value="onBlurChange"
+						/>
+					</div>
 				</div>
 				<div v-if="globalBackgroundIsAnimated" class="setting-row">
 					<div class="setting-row__info">
 						<h3 class="setting-row__label">Анимация</h3>
 						<p class="setting-row__desc">
-							Выключи, если фон тормозит на слабом устройстве.
+							Анимацию можно выключить если фон грузит на слабом устройстве.
 						</p>
 					</div>
 					<Toggle
@@ -409,17 +593,88 @@
 						@update:model-value="onAnimatedToggle"
 					/>
 				</div>
+				<div v-if="globalBackgroundIsVideo || globalBackgroundIsHtml" class="setting-row">
+					<div class="setting-row__info">
+						<h3 class="setting-row__label">Звук обоев</h3>
+						<p class="setting-row__desc">
+							При не активно окне лаунчера останавливает воспроизведение
+						</p>
+					</div>
+					<div class="modlex-slider">
+						<Slider
+							:model-value="Math.round(modlexGlobalBackgroundVolume * 100)"
+							:min="0"
+							:max="100"
+							:step="1"
+							unit="%"
+							@update:model-value="onBackgroundVolume"
+						/>
+					</div>
+				</div>
+				<template
+					v-if="(globalBackgroundIsVideo || (globalBackgroundIsGif && gifTimelineSupported)) && bgDurationSec > 0"
+				>
+					<div class="setting-row" :class="{ 'modlex-locked': !modlexGlobalBackgroundAnimated }" :inert="!modlexGlobalBackgroundAnimated">
+						<div class="setting-row__info">
+							<h3 class="setting-row__label">Начало видео</h3>
+							<p class="setting-row__desc">Обои зацикливают только выбранный отрезок </p>
+						</div>
+						<div class="modlex-slider">
+							<Slider
+								:model-value="trimStartSec"
+								:disabled="!modlexGlobalBackgroundAnimated"
+								:min="0"
+								:max="bgDurationSec"
+								:step="0.1"
+								unit="с"
+								@update:model-value="onTrimStart"
+							/>
+						</div>
+					</div>
+					<div class="setting-row" :class="{ 'modlex-locked': !modlexGlobalBackgroundAnimated }" :inert="!modlexGlobalBackgroundAnimated">
+						<div class="setting-row__info">
+							<h3 class="setting-row__label">Конец видео</h3>
+						</div>
+						<div class="modlex-slider">
+							<Slider
+								:model-value="trimEndSec"
+								:disabled="!modlexGlobalBackgroundAnimated"
+								:min="0"
+								:max="bgDurationSec"
+								:step="0.1"
+								unit="с"
+								@update:model-value="onTrimEnd"
+							/>
+						</div>
+					</div>
+					<div class="setting-row" :class="{ 'modlex-locked': modlexGlobalBackgroundAnimated }" :inert="modlexGlobalBackgroundAnimated">
+						<div class="setting-row__info">
+							<h3 class="setting-row__label">Кадр для паузы</h3>
+							<p class="setting-row__desc">Этот кадр показывается, когда анимация выключена.</p>
+						</div>
+						<div class="modlex-slider">
+							<Slider
+								:model-value="freezeSec"
+								:disabled="modlexGlobalBackgroundAnimated"
+								:min="0"
+								:max="bgDurationSec"
+								:step="0.1"
+								unit="с"
+								@update:model-value="onFreeze"
+							/>
+						</div>
+					</div>
+				</template>
 			</template>
 		</div>
 
 		<!-- Консоль запуска -->
-		<div class="settings-section">
+		<div class="settings-section" data-settings-anchor="console" data-settings-keywords="консоль запуска лог логи журнал матрица дождь надпись текст цвет символы" data-settings-label="Консоль">
 			<h2 class="settings-section__title">Консоль запуска</h2>
 			<p class="settings-section__desc">
 				Надпись на пустом экране консоли (пока нет запущенного процесса) и её размер.
 			</p>
 			<!-- ===== MODLEX: превью и ползунки размера/зазора временно отключены,
-			     решение по UX предпросмотра ещё не принято — см. BaseTerminal.IDEAS.md =====
 			<div class="console-preview">
 				<BaseTerminal
 					ref="previewTerminal"
@@ -492,7 +747,8 @@
 				<div class="setting-row__info">
 					<h3 class="setting-row__label">Анимация матричного дождя</h3>
 					<p class="setting-row__desc">
-						Если выключить — на пустом экране консоли вместо дождя будет статичный спящий волк.
+						Прикольная анимация в пустой консоле при не запущенной игре
+						Интересный факт: если выключено на пустом экране консоли будет волк
 					</p>
 				</div>
 				<Toggle v-model="modlexConsoleRainEnabled" />
@@ -553,7 +809,7 @@
 				<div class="setting-row__info">
 					<h3 class="setting-row__label">Фон консоли</h3>
 					<p class="setting-row__desc">
-						Отдельно от общего фона лаунчера —
+						Отдельный цвет от общего фона лаунчера —
 						{{ modlexConsoleBgColor ? modlexConsoleBgColor : 'стандартный цвет темы' }}
 					</p>
 				</div>
@@ -578,7 +834,7 @@
 			<div class="setting-row">
 				<div class="setting-row__info">
 					<h3 class="setting-row__label">Сбросить настройки консоли</h3>
-					<p class="setting-row__desc">Вернуть надпись, символы и цвета консоли к стандартным.</p>
+					<p class="setting-row__desc">Вернуть надпись, символы и цвета консоли к стандартным</p>
 				</div>
 				<Button type="outlined" size="sm" native-type="button" @click="resetConsoleSettings">
 					Сбросить всё
@@ -587,7 +843,7 @@
 		</div>
 
 		<!-- Discord -->
-		<div class="settings-section">
+		<div class="settings-section" data-settings-anchor="discord" data-settings-keywords="дискорд discord rpc присутствие статус активность игра" data-settings-label="Discord">
 			<h2 class="settings-section__title">Discord Rich Presence</h2>
 			<p class="settings-section__desc">
 				Свой текст статуса вместо "Играет {{ '{instance}' }}" — работает, если Discord Rich Presence
@@ -596,7 +852,7 @@
 			<div class="setting-row">
 				<div class="setting-row__info">
 					<h3 class="setting-row__label">Текст статуса</h3>
-					<p class="setting-row__desc">{{ '{instance}' }} — подставится имя запущенного инстанса</p>
+					<p class="setting-row__desc">{{ '{instance}' }} — подставляет имя запущенного инстанса</p>
 				</div>
 				<input
 					:value="discordMessage"
@@ -629,7 +885,7 @@
 		</div>
 
 		<!-- Запуск -->
-		<div v-if="multiLaunchFeatureEnabled" class="settings-section">
+		<div v-if="multiLaunchFeatureEnabled" class="settings-section" data-settings-anchor="launch" data-settings-keywords="запуск мультизапуск несколько аккаунтов одновременно мульти" data-settings-label="Запуск">
 			<h2 class="settings-section__title">Запуск</h2>
 			<div class="setting-row">
 				<div class="setting-row__info">
@@ -642,8 +898,34 @@
 			</div>
 		</div>
 
+		<!-- Уведомления -->
+		<div class="settings-section" data-settings-anchor="notifications" data-settings-keywords="уведомления предупреждения подсказки mojang моджанг серверы недоступны авторизация майнкрафт закрыть скрыть чек-лист начало работы мультиплеер" data-settings-label="Уведомления">
+			<h2 class="settings-section__title">Уведомления</h2>
+			<div class="setting-row">
+				<div class="setting-row__info">
+					<h3 class="setting-row__label">Предупреждать о недоступности серверов Mojang</h3>
+					<p class="setting-row__desc">
+						Жёлтая плашка сверху, когда серверы авторизации Mojang не отвечают.
+					</p>
+				</div>
+				<Toggle v-model="modlexNotifyAuthUnreachable" />
+			</div>
+			<div class="setting-row">
+				<div class="setting-row__info">
+					<h3 class="setting-row__label">Скрытые подсказки</h3>
+					<p class="setting-row__desc">
+						Подсказки, закрытые крестиком (список «Начало работы», предупреждение про мультиплеер на
+						1.16.5), можно вернуть.
+					</p>
+				</div>
+				<Button type="outlined" size="sm" native-type="button" @click="resetDismissedHints">
+					Показать снова
+				</Button>
+			</div>
+		</div>
+
 		<!-- Обновления -->
-		<div class="settings-section">
+		<div class="settings-section" data-settings-anchor="updates" data-settings-keywords="обновления обновить версия бета канал релиз апдейт update" data-settings-label="Обновления">
 			<h2 class="settings-section__title">Обновления</h2>
 			<div class="setting-row">
 				<div class="setting-row__info">
@@ -685,7 +967,7 @@
 		<BetaChannelModal ref="betaModal" @approved="onBetaApproved" />
 
 		<!-- Контент -->
-		<div class="settings-section">
+		<div class="settings-section" data-settings-anchor="content" data-settings-keywords="контент моды ресурспаки шейдеры установка пакеты" data-settings-label="Контент">
 			<h2 class="settings-section__title">Контент</h2>
 			<div class="setting-row">
 				<div class="setting-row__info">
@@ -696,18 +978,49 @@
 					v-model="modlexNewsSource"
 					name="news-source"
 					:options="newsSourceOptions"
-					:get-option-label="getNewsLabel"
+					:display-name="getNewsLabel"
 					class="settings-dropdown"
 				/>
 			</div>
 		</div>
 
+		<!-- Оформление инстансов -->
+		<div class="settings-section" data-settings-anchor="instance-look" data-settings-keywords="оформление инстанс инстансов сборки сборка автор авторов хедер карточка баннер логотип анимации анимация картинка статика" data-settings-label="Оформление инстансов">
+			<h2 class="settings-section__title">Оформление инстансов</h2>
+			<p class="settings-section__desc">
+				Авторы сборок могут задать свой хедер, карточку, баннер и логотип.
+			</p>
+			<div class="setting-row">
+				<div class="setting-row__info">
+					<h3 class="setting-row__label">Оформление от авторов сборок</h3>
+				</div>
+				<DropdownSelect
+					v-model="modlexInstanceCustomizationMode"
+					name="instance-customization-mode"
+					:options="instanceCustomizationModes"
+					:display-name="getCustomizationModeLabel"
+					class="settings-dropdown"
+				/>
+			</div>
+			<div
+				class="setting-row"
+				:class="{ 'modlex-locked': modlexInstanceCustomizationMode !== 'all' }"
+				:inert="modlexInstanceCustomizationMode !== 'all'"
+			>
+				<div class="setting-row__info">
+					<h3 class="setting-row__label">Анимации оформления</h3>
+					<p class="setting-row__desc">Можно выключить, если карточки и страницы тормозят.</p>
+				</div>
+				<Toggle v-model="modlexInstanceAnimations" />
+			</div>
+		</div>
+
 		<!-- Платформы поиска -->
-		<div class="settings-section">
+		<div class="settings-section" data-settings-anchor="platforms" data-settings-keywords="платформы поиск модов curseforge курсфордж modrinth модринт источники каталог" data-settings-label="Платформы">
 			<h2 class="settings-section__title">Платформы</h2>
 			<p class="settings-section__desc">
 				Управляйте источниками при поиске и установке модов. Хотя бы одна платформа должна
-				оставаться включённой.
+				оставаться включённой
 			</p>
 
 			<!-- Modrinth -->
@@ -744,7 +1057,7 @@
 		</div>
 
 		<!-- Для опытных — всегда в самом конце -->
-		<div class="settings-section">
+		<div class="settings-section" data-settings-anchor="experienced" data-settings-keywords="для опытных опытные экспертные эксперимент риск хостс hosts мультиплеер офлайн" data-settings-label="Для опытных">
 			<h2 class="settings-section__title">Для опытных пользователей</h2>
 			<div class="setting-row">
 				<div class="setting-row__info">
@@ -764,14 +1077,26 @@
 </template>
 
 <script setup lang="ts">
-import { Button, DropdownSelect, Toggle } from '@modrinth/ui'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { SearchIcon, XIcon } from '@modrinth/assets'
+import { Button, DropdownSelect, Slider, Toggle } from '@modrinth/ui'
+import { computed, onBeforeUnmount, onMounted, onUpdated, ref, watch } from 'vue'
+
+import GifCanvas from '@/components/ui/GifCanvas.vue'
+import { gifDecodingSupported, readGifInfo } from '@/helpers/gif-frames'
+import { resetDismissedHints } from '@/helpers/modlex-dismissed'
+import { createSearchMatcher } from '@/helpers/modlex-search'
 
 import ExperiencedModeUnlockModal from '@/components/ui/settings/ExperiencedModeUnlockModal.vue'
 import BetaChannelModal from '@/components/ui/modal/BetaChannelModal.vue'
 import { useFeatureFlag } from '@/helpers/feature-flags'
 import {
+	exportLayoutCode,
+	modlexAutoAccentFromWallpaper,
+	modlexAutoThemeFromWallpaper,
+	modlexSettingsSearchVisible,
+	modlexWallpaperAccent,
 	exportThemeCode,
+	importLayoutCode,
 	importThemeCode,
 	modlexAccentColor,
 	modlexBgColor,
@@ -790,6 +1115,21 @@ import {
 	modlexEnableModrinth,
 	modlexExperiencedModeUnlocked,
 	modlexFloatingGlassEffect,
+	type InstanceCustomizationMode,
+	modlexHomeCardSize,
+	modlexHomeJumpInSize,
+	modlexInstanceAnimations,
+	modlexInstanceCustomizationMode,
+	modlexNotifyAuthUnreachable,
+	modlexUseWallpaperLayout,
+	modlexWallpaperLayoutActive,
+	modlexWallpaperLayoutHint,
+	modlexHomeShowJumpIn,
+	modlexHomeShowLibrary,
+	modlexHomeShowLibrarySearch,
+	modlexNavGlassBlur,
+	modlexNavGlassEnabled,
+	modlexNavGlassOpacity,
 	modlexHideAiAgent,
 	modlexHideFloatingAccountWidget,
 	modlexHideFriends,
@@ -814,9 +1154,17 @@ import {
 	globalBackgroundAnimated as modlexGlobalBackgroundAnimated,
 	globalBackgroundBlurPx as modlexGlobalBackgroundBlurPx,
 	globalBackgroundIsAnimated,
+	globalBackgroundIsGif,
+	globalBackgroundIsHtml,
 	globalBackgroundIsVideo,
 	globalBackgroundOpacity as modlexGlobalBackgroundOpacity,
+	globalBackgroundFreezeAt,
+	globalBackgroundVolume as modlexGlobalBackgroundVolume,
 	globalBackgroundPath,
+	globalBackgroundTrimEnd,
+	globalBackgroundTrimStart,
+	persistBackgroundRange,
+	persistBackgroundVolume,
 	persistGlobalBackground,
 	refreshGlobalBackground,
 } from '@/helpers/global-background'
@@ -827,6 +1175,46 @@ import {
 	set as setSettings,
 } from '@/helpers/settings'
 import { requestImmediateUpdateCheck } from '@/providers/app-update'
+
+// ===== MODLEX: поиск по вкладке ModLEX =====
+// Фильтрует только эту страницу (строки настроек и секции целиком), левый
+// список вкладок не трогает. Работает по DOM: разметка секций остаётся как есть.
+const rootEl = ref<HTMLElement | null>(null)
+const searchQuery = ref('')
+const searchEmpty = ref(false)
+
+function hideSearch() {
+	searchQuery.value = ''
+	modlexSettingsSearchVisible.value = false
+}
+
+function applySearch() {
+	const root = rootEl.value
+	if (!root) return
+	const query = modlexSettingsSearchVisible.value ? searchQuery.value.trim() : ''
+	const matches = createSearchMatcher(query)
+	let visibleSections = 0
+	root.querySelectorAll<HTMLElement>('.settings-section').forEach((section) => {
+		const title = section.querySelector('.settings-section__title')?.textContent ?? ''
+		const keywords = section.dataset.settingsKeywords ?? ''
+		// попали в название/ключевые слова секции — показываем её целиком
+		const sectionHit = !!query && matches(title + ' ' + keywords)
+		let anyRow = false
+		section.querySelectorAll<HTMLElement>('.setting-row').forEach((row) => {
+			const match = !query || sectionHit || matches(row.textContent ?? '')
+			row.style.display = match ? '' : 'none'
+			if (match) anyRow = true
+		})
+		const showSection = !query || sectionHit || anyRow
+		section.style.display = showSection ? '' : 'none'
+		if (showSection) visibleSections++
+	})
+	searchEmpty.value = !!query && visibleSections === 0
+}
+
+watch([searchQuery, modlexSettingsSearchVisible], applySearch)
+onUpdated(applySearch)
+// ===== END MODLEX =====
 
 // ===== MODLEX: разлок вкладки "Для опытных" =====
 const unlockModal = ref<InstanceType<typeof ExperiencedModeUnlockModal>>()
@@ -857,7 +1245,7 @@ async function pickGlobalBackground() {
 		filters: [
 			{
 				name: 'Изображение / GIF / видео',
-				extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'mp4', 'webm', 'mov', 'mkv'],
+				extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'mp4', 'webm', 'mov', 'mkv', 'html', 'htm'],
 			},
 		],
 	})
@@ -868,7 +1256,7 @@ async function pickGlobalBackground() {
 	try {
 		const fileInfo = await stat(selected)
 		if (fileInfo.size / (1024 * 1024) > BACKGROUND_SIZE_WARNING_THRESHOLD_MB) {
-			backgroundSizeWarning.value = `Файл ${(fileInfo.size / (1024 * 1024)).toFixed(0)} МБ — на слабом устройстве может тормозить. Ограничений нет, это просто предупреждение.`
+			backgroundSizeWarning.value = `Файл ${(fileInfo.size / (1024 * 1024)).toFixed(0)} МБ — на слабых устройствах может тормозить.`
 		}
 
 		const previousPath = globalBackgroundPath.value
@@ -893,22 +1281,104 @@ async function removeGlobalBackground() {
 	}
 }
 
-function onOpacityInput(event: Event) {
-	const value = Number((event.target as HTMLInputElement).value)
-	persistGlobalBackground({ opacity: value })
+function onOpacityChange(percent: number) {
+	persistGlobalBackground({ opacity: percent / 100 })
 }
 
-function onBlurInput(event: Event) {
-	const value = Number((event.target as HTMLInputElement).value)
+function onBackgroundVolume(percent: number) {
+	persistBackgroundVolume(percent / 100)
+}
+
+function onBlurChange(value: number) {
 	persistGlobalBackground({ blurPx: value })
 }
 
-function onAnimatedToggle(value: boolean) {
-	persistGlobalBackground({ animated: value })
+const modlexNavGlassOpacityPct = computed({
+	get: () => Math.round(modlexNavGlassOpacity.value * 100),
+	set: (percent: number) => {
+		modlexNavGlassOpacity.value = percent / 100
+	},
+})
+
+// Отрезок видео и кадр паузы. Длительность берём из метаданных превью.
+const bgPreviewVideo = ref<HTMLVideoElement | null>(null)
+const bgDurationSec = ref(0)
+// GIF: длительность считаем по кадрам (WebCodecs); если декодера нет — отрезок для GIF недоступен
+const gifPreviewFailed = ref(false)
+const gifPreviewAt = ref(-1)
+const gifTimelineSupported = computed(() => gifDecodingSupported && !gifPreviewFailed.value)
+watch(
+	globalBackgroundPath,
+	() => {
+		bgDurationSec.value = 0
+		gifPreviewFailed.value = false
+		gifPreviewAt.value = -1
+		if (globalBackgroundIsGif.value && gifDecodingSupported && globalBackgroundPreviewUrl.value) {
+			readGifInfo(globalBackgroundPreviewUrl.value)
+				.then((info) => {
+					bgDurationSec.value = Math.floor(info.totalMs / 100) / 10
+				})
+				.catch(() => {
+					gifPreviewFailed.value = true
+				})
+		}
+	},
+	{ immediate: true },
+)
+function onPreviewMeta(event: Event) {
+	const duration = (event.target as HTMLVideoElement).duration
+	bgDurationSec.value = Number.isFinite(duration) ? Math.floor(duration * 10) / 10 : 0
 }
+const trimStartSec = computed(() => globalBackgroundTrimStart.value)
+const trimEndSec = computed(() =>
+	globalBackgroundTrimEnd.value > 0 ? globalBackgroundTrimEnd.value : bgDurationSec.value,
+)
+const freezeSec = computed(() =>
+	globalBackgroundFreezeAt.value >= 0 ? globalBackgroundFreezeAt.value : globalBackgroundTrimStart.value,
+)
+function scrubPreview(seconds: number) {
+	if (globalBackgroundIsGif.value) {
+		gifPreviewAt.value = seconds
+		return
+	}
+	const video = bgPreviewVideo.value
+	if (!video) return
+	try {
+		video.currentTime = seconds
+	} catch {
+		// метаданные ещё не готовы
+	}
+}
+function onTrimStart(value: number) {
+	const start = Math.min(value, Math.max(0, trimEndSec.value - 0.1))
+	persistBackgroundRange({ start })
+	scrubPreview(start)
+}
+function onTrimEnd(value: number) {
+	const end = Math.max(value, trimStartSec.value + 0.1)
+	// «до конца файла» храним как 0
+	persistBackgroundRange({ end: end >= bgDurationSec.value - 0.05 ? 0 : end })
+	scrubPreview(end)
+}
+function onFreeze(value: number) {
+	persistBackgroundRange({ freeze: value })
+	scrubPreview(value)
+}
+
+function onAnimatedToggle(value: boolean | undefined) {
+	persistGlobalBackground({ animated: !!value })
+}
+
+// ModLEX: превью фона в настройках — статичный кадр (без autoplay): живое видео рядом с
+// таким же на главной удваивало декодирование и заметно лагало при открытых настройках.
 // ===== END MODLEX =====
 
 const newsSourceOptions: NewsSource[] = ['github', 'modrinth', 'off']
+
+const instanceCustomizationModes: InstanceCustomizationMode[] = ['all', 'static', 'off']
+function getCustomizationModeLabel(value: InstanceCustomizationMode): string {
+	return { all: 'Всё', static: 'Только статика', off: 'Выключено' }[value] ?? value
+}
 
 function getNewsLabel(value: NewsSource): string {
 	return { github: 'GitHub', modrinth: 'Modrinth', off: 'Выключено' }[value] ?? value
@@ -923,10 +1393,6 @@ const { locked: switchToBetaLocked, message: switchToBetaLockedMessage } =
 const { enabled: musicFeatureEnabled } = useFeatureFlag('modlex_music')
 const { enabled: multiLaunchFeatureEnabled } = useFeatureFlag('multi_account_launch')
 
-// CurseForge приостановлен (сложная логика интерфейса ещё не готова), пока
-// заблокирован фича-флагом — показываем тумблер выключенным, даже если
-// пользователь когда-то включил его в настройках (это сохранённое значение
-// вернётся, как только фича разблокируется).
 const cfDisplayValue = computed(() => (cfLocked.value ? false : modlexEnableCurseForge.value))
 
 // ===== MODLEX: акцентный цвет =====
@@ -980,6 +1446,25 @@ function applyThemeCodeInput() {
 	const ok = importThemeCode(importThemeCodeInput.value)
 	showInlineNotice(ok ? 'Тема применена' : 'Не удалось прочитать код темы')
 	if (ok) importThemeCodeInput.value = ''
+}
+const importLayoutCodeInput = ref('')
+
+async function copyLayoutCode() {
+	const code = exportLayoutCode()
+	try {
+		await navigator.clipboard.writeText(code)
+		showInlineNotice('Код раскладки скопирован в буфер обмена')
+	} catch {
+		console.log('[ModLEX] код раскладки:', code)
+		showInlineNotice('Не удалось скопировать — код выведен в консоль')
+	}
+}
+
+function applyLayoutCodeInput() {
+	if (!importLayoutCodeInput.value.trim()) return
+	const ok = importLayoutCode(importLayoutCodeInput.value)
+	showInlineNotice(ok ? 'Раскладка применена' : 'Не удалось прочитать код раскладки')
+	if (ok) importLayoutCodeInput.value = ''
 }
 // ===== END MODLEX =====
 
@@ -1117,6 +1602,15 @@ function onToggleCurseForge(value: boolean) {
 	padding-bottom: 0;
 }
 
+.modlex-locked {
+	opacity: 0.4;
+	pointer-events: none;
+}
+
+[data-settings-anchor] {
+	scroll-margin-top: 4.5rem;
+}
+
 .settings-section__title {
 	font-size: 1.1rem;
 	font-weight: 600;
@@ -1212,8 +1706,9 @@ function onToggleCurseForge(value: boolean) {
 	object-fit: cover;
 }
 
-.bg-slider {
-	width: 12rem;
+.modlex-slider {
+	width: 20rem;
+	max-width: 100%;
 }
 
 .toggle-lock-wrapper--locked {

@@ -19,6 +19,7 @@ import { useAppEvent } from '@/composables/use-app-event'
 import { useAppSettings } from '@/composables/use-app-settings.ts'
 import { handleSevereError } from '@/composables/use-error.js'
 import { trackEvent } from '@/helpers/analytics'
+import { modlexHomeJumpInSizeEff } from '@/helpers/modlex-settings'
 import { kill, run } from '@/helpers/instance'
 import { get_all } from '@/helpers/process'
 import { get_game_versions } from '@/helpers/tags'
@@ -398,12 +399,17 @@ onUnmounted(() => {
 		<div v-if="loading" class="text-center py-4">
 			<LoaderCircleIcon class="mx-auto size-8 animate-spin text-contrast" />
 		</div>
-		<div v-else class="grid-when-huge relative flex w-full flex-col gap-3">
+		<div
+			v-else
+			class="grid-when-huge relative flex w-full flex-col gap-3"
+			:class="{ 'modlex-jump-compact': modlexHomeJumpInSizeEff === 'compact' }"
+		>
 			<TransitionGroup name="jump-back-in-item">
 				<div
 					v-for="item in visibleJumpBackInItems"
 					:key="`${item.instance.id}-${item.type === 'world' ? getWorldIdentifier(item.world) : 'instance'}`"
 					class="jump-back-in-item min-w-0"
+					:data-modlex-jumpin="`${item.instance.id}-${item.type === 'world' ? getWorldIdentifier(item.world) : 'instance'}`"
 				>
 					<WorldItem
 						v-if="item.type === 'world'"
@@ -507,6 +513,10 @@ onUnmounted(() => {
 	</Accordion>
 </template>
 <style scoped lang="scss">
+.modlex-jump-compact {
+	zoom: 0.82;
+}
+
 .grid-when-huge {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(670px, 1fr));

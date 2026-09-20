@@ -31,6 +31,7 @@ import type {
 import { useLibrary } from '@/components/ui/library/use-library'
 import { useAppSettings } from '@/composables/use-app-settings.ts'
 import { FAVORITES_GROUP_ID, MAX_INSTANCE_GROUP_NAME_LENGTH } from '@/helpers/instance-groups'
+import { modlexHomeCardSizeEff } from '@/helpers/modlex-settings'
 
 const INSTANCE_GRID_OBSERVER_ACTIVATION_DELAY = 500
 
@@ -51,6 +52,16 @@ const props = withDefaults(
 const { formatMessage } = useVIntl()
 const appSettings = useAppSettings()
 const compactMode = computed(() => appSettings.getFeatureFlag('compact_instance_cards'))
+
+// ModLEX: шаблонные размеры карточек библиотеки на главной (small/medium/large)
+const modlexInstanceGridClass = computed(() => {
+	if (compactMode.value) return 'grid-cols-[repeat(auto-fill,minmax(min(15rem,100%),1fr))]'
+	if (modlexHomeCardSizeEff.value === 'small')
+		return 'grid-cols-[repeat(auto-fill,minmax(min(7rem,100%),1fr))]'
+	if (modlexHomeCardSizeEff.value === 'large')
+		return 'grid-cols-[repeat(auto-fill,minmax(min(14rem,100%),1fr))]'
+	return 'grid-cols-[repeat(auto-fill,minmax(min(10rem,100%),1fr))] max-xl:grid-cols-[repeat(auto-fill,minmax(min(8rem,100%),1fr))]'
+})
 const { addNotification } = injectNotificationManager()
 const {
 	isSectionCollapsed,
@@ -479,11 +490,7 @@ onMounted(startInstanceGridResizeObserver)
 					<TransitionGroup
 						tag="section"
 						class="grid min-h-[45px] w-full gap-3 overflow-y-auto scroll-smooth"
-						:class="
-							compactMode
-								? 'grid-cols-[repeat(auto-fill,minmax(min(15rem,100%),1fr))]'
-								: 'grid-cols-[repeat(auto-fill,minmax(min(10rem,100%),1fr))] max-xl:grid-cols-[repeat(auto-fill,minmax(min(8rem,100%),1fr))]'
-						"
+						:class="modlexInstanceGridClass"
 						move-class="transition-transform duration-200 ease-out motion-reduce:transition-none"
 						enter-active-class="transition-[opacity,transform] duration-[150ms] ease-out motion-reduce:transition-none"
 						enter-from-class="opacity-0"

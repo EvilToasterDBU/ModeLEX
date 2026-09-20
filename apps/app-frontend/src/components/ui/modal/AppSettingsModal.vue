@@ -73,6 +73,10 @@ const tabCategories = defineMessages({
 		id: 'app.settings.sidebar.label.instances',
 		defaultMessage: 'Instances',
 	},
+	modlex: {
+		id: 'app.settings.sidebar.label.modlex',
+		defaultMessage: 'ModLEX',
+	},
 })
 
 const tabs = [
@@ -164,14 +168,17 @@ const tabs = [
 			id: 'app.settings.tabs.modlex',
 			defaultMessage: 'ModLEX',
 		}),
+		category: tabCategories.modlex,
 		icon: SparklesIcon,
 		content: ModLexSettings,
+		anchors: true,
 	},
 	{
 		name: defineMessage({
 			id: 'app.settings.tabs.modlex-advanced',
 			defaultMessage: 'Для опытных',
 		}),
+		category: tabCategories.modlex,
 		icon: ShieldAlertIcon,
 		content: ModLexAdvancedSettings,
 		experiencedOnly: true,

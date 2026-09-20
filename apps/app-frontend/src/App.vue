@@ -96,6 +96,18 @@ import SurveyPopup from '@/components/ui/SurveyPopup.vue'
 import WindowControls from '@/components/ui/WindowControls.vue'
 import { useCheckDisableMouseover } from '@/composables/macCssFix.js'
 import { useAppEvent } from '@/composables/use-app-event'
+import { useVideoPauseWatchdog } from '@/composables/use-video-pause-watchdog'
+import { useLauncherActivity } from '@/composables/use-launcher-activity'
+import {
+	hasInstanceCustomizationEntry,
+	refreshInstanceCustomization,
+} from '@/helpers/modlex-instance-customization'
+import { gifDecodingSupported } from '@/helpers/gif-frames'
+import { useVideoAudio } from '@/composables/use-video-audio'
+import { useVideoTrim } from '@/composables/use-video-trim'
+import GifCanvas from '@/components/ui/GifCanvas.vue'
+import HtmlWallpaper from '@/components/ui/HtmlWallpaper.vue'
+import { deriveThemeFromAccent, extractWallpaperAccent } from '@/helpers/wallpaper-palette'
 import { useAppSettings } from '@/composables/use-app-settings.ts'
 import { useError } from '@/composables/use-error.js'
 import { useTheme } from '@/composables/use-theme.ts'
@@ -105,7 +117,12 @@ import { check_reachable } from '@/helpers/auth.js'
 import { get_user, get_version } from '@/helpers/cache.js'
 import { useFeatureFlag } from '@/helpers/feature-flags'
 import { install_create_modpack_instance, install_get_modpack_preview } from '@/helpers/install'
-import { can_current_user_use_shared_instances, get as getInstance, run } from '@/helpers/instance'
+import {
+	apply_customization_icon,
+	can_current_user_use_shared_instances,
+	get as getInstance,
+	run,
+} from '@/helpers/instance'
 import {
 	refreshFeatureFlags,
 	startFeatureFlagPolling,
@@ -115,15 +132,31 @@ import {
 	globalBackgroundAnimated as modlexGlobalBackgroundAnimated,
 	globalBackgroundBlurPx as modlexGlobalBackgroundBlurPx,
 	globalBackgroundIsGif as modlexGlobalBackgroundIsGif,
+	globalBackgroundIsHtml as modlexGlobalBackgroundIsHtml,
 	globalBackgroundIsVideo as modlexGlobalBackgroundIsVideo,
 	globalBackgroundOpacity as modlexGlobalBackgroundOpacity,
 	globalBackgroundPath as modlexGlobalBackgroundPath,
+	globalBackgroundFreezeAt as modlexGlobalBackgroundFreezeAt,
+	globalBackgroundVolume as modlexGlobalBackgroundVolume,
+	globalBackgroundTrimEnd as modlexGlobalBackgroundTrimEnd,
+	globalBackgroundTrimStart as modlexGlobalBackgroundTrimStart,
 	refreshGlobalBackground,
 } from '@/helpers/global-background'
 import { fetchModlexNews } from '@/helpers/modlex-github-news'
 import { startPing, stopPing } from '@/helpers/modlex-ping'
 // ===== ModLEX IMPORTS =====
 import {
+	modlexAutoAccentFromWallpaper,
+	modlexAutoThemeFromWallpaper,
+	modlexNotifyAuthUnreachable,
+	modlexWallpaperTheme,
+	modlexEffectiveAccent,
+	modlexWallpaperLayoutHint,
+	sanitizeWallpaperLayout,
+	modlexWallpaperAccent,
+	modlexNavGlassBlur,
+	modlexNavGlassEnabled,
+	modlexNavGlassOpacity,
 	modlexFloatingGlassEffect,
 	modlexHideAiAgent,
 	modlexHideFriends,
@@ -226,17 +259,180 @@ const sidebarVisible = computed(() => sidebarToggled.value || forceSidebar.value
 const modlexGlobalBackgroundPreviewUrl = computed(() =>
 	modlexGlobalBackgroundPath.value ? convertFileSrc(modlexGlobalBackgroundPath.value) : null,
 )
-// Видео/GIF только когда анимация включена; статичная картинка — всегда.
-// (см. modlex_global_background_animated в Settings.rs — выключенный тумблер
-// прячет анимированный фон целиком, а не морозит его на первом кадре.)
-const modlexGlobalBackgroundShouldPlayVideo = computed(
-	() => modlexGlobalBackgroundIsVideo.value && modlexGlobalBackgroundAnimated.value,
+
+// Выключенный тумблер анимации должен морозить фон на текущем кадре, а не
+// прятать его целиком (баг: экран становился чёрным, т.к. <video>/<img> оба
+// переставали рендериться). Видео просто ставится на паузу; GIF браузер не
+// умеет ставить на паузу нативно, поэтому текущий кадр снимается в <canvas>
+// и подменяет собой <img>, пока анимация выключена.
+const modlexBgVideoRef = ref(null)
+const modlexBgImageRef = ref(null)
+const modlexBgCanvasRef = ref(null)
+// ТЕСТ: акцент под обои. Пересчитываем при смене файла или включении тумблера.
+let modlexWallpaperAccentRun = 0
+// Палитру HTML-обоям пикселями не прочитать — они сами присылают акцент (см. docs/wallpapers)
+const modlexHtmlWallpaperPalette = ref('')
+watch(
+	[
+		modlexGlobalBackgroundPreviewUrl,
+		modlexAutoAccentFromWallpaper,
+		modlexAutoThemeFromWallpaper,
+		modlexHtmlWallpaperPalette,
+	],
+	async ([url, accentOn, themeOn, htmlPalette]) => {
+		const run = ++modlexWallpaperAccentRun
+		if (!url || (!accentOn && !themeOn)) {
+			modlexWallpaperAccent.value = ''
+			modlexWallpaperTheme.value = null
+			return
+		}
+		const kind = modlexGlobalBackgroundIsHtml.value
+			? 'html'
+			: modlexGlobalBackgroundIsVideo.value
+				? 'video'
+				: 'image'
+		const color =
+			kind === 'html' ? htmlPalette || null : await extractWallpaperAccent(url, kind)
+		if (run !== modlexWallpaperAccentRun) return
+		modlexWallpaperAccent.value = color ?? ''
+		modlexWallpaperTheme.value = color ? deriveThemeFromAccent(color) : null
+	},
+	{ immediate: true },
 )
-const modlexGlobalBackgroundShouldShowImage = computed(
+
+// backdrop-filter модалок поверх играющего видео/HTML-обоев пересчитывается каждый кадр и
+// сильно лагает (особенно с открытыми настройками) — для анимированных обоев отключаем.
+watch(
 	() =>
-		!modlexGlobalBackgroundIsVideo.value &&
-		(!modlexGlobalBackgroundIsGif.value || modlexGlobalBackgroundAnimated.value),
+		!!modlexGlobalBackgroundPath.value &&
+		modlexGlobalBackgroundAnimated.value &&
+		(modlexGlobalBackgroundIsVideo.value ||
+			modlexGlobalBackgroundIsHtml.value ||
+			modlexGlobalBackgroundIsGif.value),
+	(animatedWallpaper) => {
+		document.documentElement.classList.toggle('modrinth-parent__no-modal-blurs', animatedWallpaper)
+	},
+	{ immediate: true },
 )
+
+// GIF с выбранным отрезком/кадром паузы рисуется покадрово на canvas (браузер не умеет иначе);
+// если декодер недоступен или файл не разобрался — остаётся обычная <img>
+const modlexGifDecodeFailed = ref(false)
+watch(modlexGlobalBackgroundPath, () => {
+	modlexGifDecodeFailed.value = false
+})
+const modlexGifCanvasMode = computed(() => {
+	if (!modlexGlobalBackgroundIsGif.value || !gifDecodingSupported || modlexGifDecodeFailed.value) {
+		return false
+	}
+	const trimmed =
+		modlexGlobalBackgroundTrimStart.value > 0 || modlexGlobalBackgroundTrimEnd.value > 0
+	return modlexGlobalBackgroundAnimated.value
+		? trimmed
+		: trimmed || modlexGlobalBackgroundFreezeAt.value >= 0
+})
+
+const modlexGlobalBackgroundGifFrozen = computed(
+	() => modlexGlobalBackgroundIsGif.value && !modlexGlobalBackgroundAnimated.value,
+)
+
+const modlexNavGlassStyle = computed(() =>
+	modlexNavGlassEnabled.value
+		? {
+				background: `color-mix(in srgb, var(--color-raised-bg) ${Math.round(modlexNavGlassOpacity.value * 100)}%, transparent)`,
+				backdropFilter: `blur(${modlexNavGlassBlur.value}px) saturate(150%)`,
+			}
+		: undefined,
+)
+const modlexWallpaperRootStyle = computed(() => ({
+	'--right-bar-width': sidebarReservesSpace.value ? `${APP_SIDEBAR_WIDTH}px` : '0px',
+}))
+const modlexGlassCornerStyle = computed(() => {
+	const mask =
+		'radial-gradient(circle at 100% 100%, transparent calc(var(--radius-xl) - 0.5px), #000 var(--radius-xl))'
+	return {
+		...modlexNavGlassStyle.value,
+		left: 'var(--left-bar-width)',
+		top: 'var(--top-bar-height)',
+		width: 'var(--radius-xl)',
+		height: 'var(--radius-xl)',
+		maskImage: mask,
+		WebkitMaskImage: mask,
+	}
+})
+const modlexWallpaperBoxStyle = computed(() => {
+	const base = { opacity: modlexGlobalBackgroundOpacity.value }
+	if (modlexNavGlassEnabled.value) {
+		return {
+			...base,
+			left: '0',
+			top: '0',
+			width: 'calc(100% - var(--right-bar-width))',
+			height: '100%',
+		}
+	}
+	return {
+		...base,
+		left: 'var(--left-bar-width)',
+		top: 'var(--top-bar-height)',
+		width: 'calc(100% - var(--left-bar-width) - var(--right-bar-width))',
+		height: 'calc(100% - var(--top-bar-height))',
+		borderTopLeftRadius: 'var(--radius-xl)',
+	}
+})
+
+const { onPlay: modlexOnBgVideoPlay } = useVideoPauseWatchdog(
+	modlexBgVideoRef,
+	modlexGlobalBackgroundAnimated,
+)
+
+// Отрезок видео и кадр паузы (Настройки → ModLEX → Фон)
+const modlexBgTrimActive = computed(
+	() =>
+		modlexGlobalBackgroundIsVideo.value &&
+		modlexGlobalBackgroundAnimated.value &&
+		(modlexGlobalBackgroundTrimStart.value > 0 || modlexGlobalBackgroundTrimEnd.value > 0),
+)
+const modlexBgVideoSrc = computed(() => {
+	const url = modlexGlobalBackgroundPreviewUrl.value
+	const start = modlexGlobalBackgroundTrimStart.value
+	if (modlexGlobalBackgroundAnimated.value) return start > 0 ? `${url}#t=${start}` : url
+	const freeze = modlexGlobalBackgroundFreezeAt.value
+	return `${url}#t=${freeze >= 0 ? freeze : start > 0 ? start : 0.1}`
+})
+// Звук видео-обоев: только пока анимация идёт, окно в фокусе и игра не запущена
+const { windowFocused: modlexWindowFocused, gameRunning: modlexGameRunning } = useLauncherActivity(appEvents)
+useVideoAudio(
+	modlexBgVideoRef,
+	modlexGlobalBackgroundVolume,
+	computed(
+		() =>
+			modlexGlobalBackgroundAnimated.value && modlexWindowFocused.value && !modlexGameRunning.value,
+	),
+)
+useVideoTrim(
+	modlexBgVideoRef,
+	modlexGlobalBackgroundTrimStart,
+	modlexGlobalBackgroundTrimEnd,
+	modlexBgTrimActive,
+)
+
+function modlexFreezeBgGifFrame() {
+	const img = modlexBgImageRef.value
+	const canvas = modlexBgCanvasRef.value
+	if (!img || !canvas || !img.naturalWidth) return
+	canvas.width = img.naturalWidth
+	canvas.height = img.naturalHeight
+	canvas.getContext('2d')?.drawImage(img, 0, 0)
+}
+
+function modlexOnBgImageLoad() {
+	if (modlexGlobalBackgroundGifFrozen.value) modlexFreezeBgGifFrame()
+}
+
+watch(modlexGlobalBackgroundGifFrozen, (frozen) => {
+	if (frozen) void nextTick(modlexFreezeBgGifFrame)
+})
 // ===== /MODLEX =====
 
 // ===== MODLEX: скрытие правой панели =====
@@ -531,6 +727,8 @@ const authServerQuery = useQuery({
 	refetchOnWindowFocus: false,
 })
 
+// закрытие крестиком действует до перезапуска; насовсем выключается в настройках ModLEX
+const authUnreachableDismissed = ref(false)
 const authUnreachable = computed(() => {
 	if (authServerQuery.isError.value && !authServerQuery.isLoading.value) {
 		console.warn('Failed to reach auth servers', authServerQuery.error.value)
@@ -1372,6 +1570,31 @@ const accounts = ref(null)
 provide('accountsCard', accounts)
 
 useAppEvent('command', handleCommand, appEvents)
+// Оформление инстанса от автора: установка сборки распаковывает папку modlex/ уже после появления
+// инстанса в списке — после её завершения и при правках перечитываем оформление с диска
+useAppEvent(
+	'instance',
+	(event) => {
+		if (
+			(event.event === 'created' || event.event === 'synced' || event.event === 'edited') &&
+			hasInstanceCustomizationEntry(event.instance_id)
+		) {
+			refreshInstanceCustomization(event.instance_id)
+		}
+	},
+	appEvents,
+)
+useAppEvent(
+	'install_job',
+	(job) => {
+		if (job.status === 'succeeded' && job.instance_id) {
+			refreshInstanceCustomization(job.instance_id)
+			// иконка, приехавшая в сборке (modlex/icon.png), — только на стандартную иконку
+			apply_customization_icon(job.instance_id, false).catch(() => {})
+		}
+	},
+	appEvents,
+)
 useAppEvent('notification', handleLiveNotification, appEvents)
 
 async function markLiveNotificationRead(notification) {
@@ -2001,8 +2224,78 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 			@saved="onCreationIconSaved"
 		/>
 		<UnknownPackWarningModal ref="unknownPackWarningModal" />
+		<!-- ===== MODLEX: обои на весь layout (нужно, чтобы левая панель/верхняя полоска могли быть стеклом) ===== -->
+		<div
+			v-if="modlexGlobalBackgroundPath"
+			class="modlex-wallpaper-root pointer-events-none absolute inset-0 z-0 overflow-hidden"
+			:style="modlexWallpaperRootStyle"
+		>
+			<div
+				class="absolute rounded-tl-[--radius-xl]"
+				style="left: var(--left-bar-width); top: var(--top-bar-height); right: 0; bottom: 0; background: var(--color-bg)"
+			></div>
+			<div class="absolute overflow-hidden" :style="modlexWallpaperBoxStyle">
+
+				<HtmlWallpaper
+					v-if="modlexGlobalBackgroundIsHtml"
+					:src="modlexGlobalBackgroundPreviewUrl ?? ''"
+					:animated="modlexGlobalBackgroundAnimated"
+					:blur-px="modlexGlobalBackgroundBlurPx"
+					:accent-color="modlexEffectiveAccent"
+					:volume="modlexGlobalBackgroundVolume"
+					@palette="modlexHtmlWallpaperPalette = $event"
+					@layout="modlexWallpaperLayoutHint = sanitizeWallpaperLayout($event)"
+				/>
+				<video
+					v-else-if="modlexGlobalBackgroundIsVideo"
+					:key="modlexGlobalBackgroundAnimated ? 'bg-play' : 'bg-still'"
+					ref="modlexBgVideoRef"
+					:src="modlexBgVideoSrc"
+					:autoplay="modlexGlobalBackgroundAnimated"
+					:loop="modlexGlobalBackgroundAnimated && !modlexBgTrimActive"
+					muted
+					playsinline
+					class="h-full w-full object-cover"
+					:style="{ filter: `blur(${modlexGlobalBackgroundBlurPx}px)` }"
+					@play="modlexOnBgVideoPlay"
+				/>
+				<GifCanvas
+					v-else-if="modlexGifCanvasMode"
+					:url="modlexGlobalBackgroundPreviewUrl"
+					:playing="modlexGlobalBackgroundAnimated"
+					:start="modlexGlobalBackgroundTrimStart"
+					:end="modlexGlobalBackgroundTrimEnd"
+					:still-at="modlexGlobalBackgroundFreezeAt"
+					:style="{ filter: `blur(${modlexGlobalBackgroundBlurPx}px)` }"
+					@failed="modlexGifDecodeFailed = true"
+				/>
+				<template v-else>
+					<img
+						ref="modlexBgImageRef"
+						v-show="!modlexGlobalBackgroundGifFrozen"
+						:src="modlexGlobalBackgroundPreviewUrl"
+						alt=""
+						class="h-full w-full object-cover"
+						:style="{ filter: `blur(${modlexGlobalBackgroundBlurPx}px)` }"
+						@load="modlexOnBgImageLoad"
+					/>
+					<canvas
+						v-if="modlexGlobalBackgroundIsGif"
+						ref="modlexBgCanvasRef"
+						v-show="modlexGlobalBackgroundGifFrozen"
+						class="h-full w-full object-cover"
+						:style="{ filter: `blur(${modlexGlobalBackgroundBlurPx}px)` }"
+					></canvas>
+				</template>
+			</div>
+			<!-- Внутренний угол скруглённого контента: в режиме стекла вырез между панелями иначе
+			     показывает голые обои, а не такое же стекло, как панели -->
+			<div v-if="modlexNavGlassEnabled" class="absolute" :style="modlexGlassCornerStyle"></div>
+		</div>
+		<!-- ===== /MODLEX ===== -->
 		<div
 			class="app-grid-navbar bg-bg-raised flex flex-col p-[0.5rem] pt-0 gap-[0.25rem] w-[--left-bar-width]"
+			:style="modlexNavGlassStyle"
 		>
 			<NavButton
 				v-tooltip.right="formatMessage(messages.home)"
@@ -2117,7 +2410,11 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 				<LogInIcon class="text-brand" />
 			</NavButton>
 		</div>
-		<div data-tauri-drag-region class="app-grid-statusbar bg-bg-raised h-[--top-bar-height] flex">
+		<div
+			data-tauri-drag-region
+			class="app-grid-statusbar bg-bg-raised h-[--top-bar-height] flex"
+			:style="modlexNavGlassStyle"
+		>
 			<div data-tauri-drag-region class="flex min-w-0 flex-1 items-center overflow-hidden p-2">
 				<ModLEXAppLogo class="h-7 w-auto shrink-0 text-contrast pointer-events-none" />
 				<span
@@ -2179,8 +2476,10 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 		class="app-contents"
 		:class="{
 			'sidebar-enabled': sidebarVisible && !modlexHideRightSidebar,
+			'modlex-wallpaper-active': !!modlexGlobalBackgroundPath,
 			'disable-advanced-rendering': !appTheme.advancedRendering,
 		}"
+		:style="{ '--right-bar-width': sidebarReservesSpace ? `${APP_SIDEBAR_WIDTH}px` : '0px' }"
 	>
 		<div class="app-viewport flex-grow router-view">
 			<SurveyPopup />
@@ -2207,32 +2506,6 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 					width: 'calc(100% - var(--right-bar-width))',
 				}"
 			></div>
-			<div
-				v-if="modlexGlobalBackgroundPath"
-				class="absolute h-full -z-20 rounded-tl-[--radius-xl] overflow-hidden pointer-events-none"
-				:style="{
-					width: 'calc(100% - var(--right-bar-width))',
-					opacity: modlexGlobalBackgroundOpacity,
-				}"
-			>
-				<video
-					v-if="modlexGlobalBackgroundShouldPlayVideo"
-					:src="modlexGlobalBackgroundPreviewUrl"
-					autoplay
-					loop
-					muted
-					playsinline
-					class="h-full w-full object-cover"
-					:style="{ filter: `blur(${modlexGlobalBackgroundBlurPx}px)` }"
-				/>
-				<img
-					v-else-if="modlexGlobalBackgroundShouldShowImage"
-					:src="modlexGlobalBackgroundPreviewUrl"
-					alt=""
-					class="h-full w-full object-cover"
-					:style="{ filter: `blur(${modlexGlobalBackgroundBlurPx}px)` }"
-				/>
-			</div>
 			<Admonition
 				v-if="criticalErrorMessage"
 				type="critical"
@@ -2245,10 +2518,12 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 				></div>
 			</Admonition>
 			<Admonition
-				v-if="authUnreachable"
+				v-if="authUnreachable && modlexNotifyAuthUnreachable && !authUnreachableDismissed"
 				type="warning"
 				:header="formatMessage(messages.authUnreachableHeader)"
 				class="m-6 mb-0"
+				dismissible
+				@dismiss="authUnreachableDismissed = true"
 			>
 				{{ formatMessage(messages.authUnreachableBody) }}
 			</Admonition>
@@ -2485,6 +2760,10 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
 
 	&.sidebar-enabled {
 		grid-template-columns: 1fr 300px;
+	}
+	// Обои рисуются слоем ниже (.modlex-wallpaper-root), свой сплошной фон мешал бы им
+	&.modlex-wallpaper-active {
+		background-color: transparent;
 	}
 	// Анимация для новостей
 	.news-enter-active {
@@ -2742,6 +3021,33 @@ provideAppUpdateDownloadProgress(appUpdateDownload)
    тысяч селекторов, за счёт каскада на svg). */
 :root[data-modlex-double-border] svg {
 	filter: drop-shadow(0 0 1px var(--modlex-border-outer-color, #000));
+}
+
+/* Цвет иконок (настройка «Иконки») — на все нейтральные иконки интерфейса. Иконки с
+   собственным цветом (класс text-*) и иконки внутри залитых цветных кнопок не трогаем —
+   у них цвет задаёт контекст. */
+:root[data-modlex-icon-color]
+	:is(
+		.app-grid-navbar,
+		.app-grid-statusbar,
+		.app-sidebar,
+		.modal-body,
+		.modlex-ai-agent,
+		.app-viewport
+	)
+	svg:not([class*='text-']):not(
+		:where(
+			.bg-brand *,
+			.bg-brand-highlight *,
+			.bg-red *,
+			.bg-green *,
+			.bg-blue *,
+			.bg-orange *,
+			.bg-purple *,
+			[class*='colored'] *
+		)
+	) {
+	color: var(--modlex-icon-color);
 }
 
 /* Обводка текста — отдельная настройка (свой тумблер и цвет), не привязана

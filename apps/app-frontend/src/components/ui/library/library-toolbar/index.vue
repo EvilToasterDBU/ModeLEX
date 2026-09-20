@@ -3,6 +3,7 @@ import { PlusIcon, SearchIcon, SquarePlusIcon } from '@modrinth/assets'
 import { Button, defineMessages, StyledInput, useVIntl } from '@modrinth/ui'
 import { computed, inject } from 'vue'
 
+import ModrinthSyncMenu from '@/components/ui/ModrinthSyncMenu.vue'
 import FilterMenu from '@/components/ui/library/library-toolbar/filter-menu.vue'
 import NewGroupModal from '@/components/ui/library/library-toolbar/new-group-modal.vue'
 import SortMenu from '@/components/ui/library/library-toolbar/sort-menu.vue'
@@ -37,6 +38,7 @@ function openNewGroup() {
 				clearable
 				wrapper-class="min-w-[16rem] flex-1"
 			/>
+			<ModrinthSyncMenu />
 			<Button @click="openNewGroup">
 				<SquarePlusIcon />
 				{{ formatMessage(messages.newGroup) }}

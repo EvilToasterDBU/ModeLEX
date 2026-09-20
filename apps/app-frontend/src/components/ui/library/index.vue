@@ -3,6 +3,7 @@ import {
 	ClipboardCopyIcon,
 	EditIcon,
 	EyeIcon,
+	EyeOffIcon,
 	FolderOpenIcon,
 	MinusIcon,
 	PaletteIcon,
@@ -31,6 +32,7 @@ import {
 } from '@/components/ui/library/use-library'
 import ConfirmDeleteInstanceModal from '@/components/ui/modal/ConfirmDeleteInstanceModal.vue'
 import { FAVORITES_GROUP_ID } from '@/helpers/instance-groups'
+import { modlexHomeShowLibrarySearchEff } from '@/helpers/modlex-settings'
 import type { GameInstance } from '@/helpers/types'
 
 const props = defineProps<{
@@ -93,6 +95,14 @@ const messages = defineMessages({
 	removeFromGroup: {
 		id: 'app.library.instance.action.remove-from-group',
 		defaultMessage: 'Remove from group',
+	},
+	hideFromHome: {
+		id: 'app.library.instance.action.modlex-hide-from-home',
+		defaultMessage: 'Hide from Home',
+	},
+	showOnHome: {
+		id: 'app.library.instance.action.modlex-show-on-home',
+		defaultMessage: 'Show on Home',
 	},
 })
 
@@ -310,7 +320,7 @@ watch(selectedLibraryInstances, (selectedInstances) => {
 			<h2 class="m-0 text-2xl font-semibold text-contrast">
 				{{ formatMessage(messages.library) }}
 			</h2>
-			<LibraryToolbar />
+			<LibraryToolbar v-if="modlexHomeShowLibrarySearchEff" />
 			<div
 				v-if="libraryGroupsLoaded && isSearching && visibleInstanceGroups.length === 0"
 				class="text-base text-primary"
@@ -459,6 +469,8 @@ watch(selectedLibraryInstances, (selectedInstances) => {
 		<template #remove_from_group>
 			<MinusIcon /> {{ formatMessage(messages.removeFromGroup) }}
 		</template>
+		<template #hide_from_home> <EyeOffIcon /> {{ formatMessage(messages.hideFromHome) }} </template>
+		<template #show_on_home> <EyeIcon /> {{ formatMessage(messages.showOnHome) }} </template>
 	</ContextMenu>
 </template>
 

@@ -31,6 +31,11 @@ import {
 	set_group_memberships as setInstanceGroupMemberships,
 	set_group_order as setInstanceGroupOrder,
 } from '@/helpers/instance-groups'
+import {
+	hideInstanceFromHome,
+	isInstanceHiddenFromHome,
+	showInstanceOnHome,
+} from '@/helpers/modlex-home-hidden-instances'
 import type { GameInstance, InstanceIconConfig } from '@/helpers/types'
 
 export const librarySortOptions = [
@@ -1193,6 +1198,10 @@ function createLibraryState(instances: Ref<GameInstance[]>) {
 			...(currentContextGroupId.value
 				? [{ name: 'remove_from_group' }, { type: 'divider' }]
 				: [{ type: 'divider' }]),
+			{
+				name: isInstanceHiddenFromHome(item.instance.id) ? 'show_on_home' : 'hide_from_home',
+			},
+			{ type: 'divider' },
 			{ name: 'delete', color: 'danger' },
 		]
 
@@ -1265,6 +1274,12 @@ function createLibraryState(instances: Ref<GameInstance[]>) {
 						),
 					}).catch((error) => handleError(toError(error)))
 				}
+				break
+			case 'hide_from_home':
+				hideInstanceFromHome(item.instance.id)
+				break
+			case 'show_on_home':
+				showInstanceOnHome(item.instance.id)
 				break
 			case 'delete':
 				currentDeleteInstanceId.value = item.instance.id

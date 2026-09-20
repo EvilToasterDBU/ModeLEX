@@ -26,7 +26,7 @@
 	<NewModal ref="stepTwoModal" header="Вы точно уверены?" max-width="26rem">
 		<div class="flex flex-col gap-4">
 			<p class="m-0 text-sm text-secondary">
-				Последний шанс передумать — дальше будут открыты потенциально рискованные настройки.
+				Вы точно понимаете свои действия?
 			</p>
 			<div class="flex gap-2 justify-end">
 				<Button @click="cancel">Нет, я не опытный</Button>

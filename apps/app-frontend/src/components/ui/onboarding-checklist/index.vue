@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { CheckIcon, RadioButtonIcon } from '@modrinth/assets'
+import { CheckIcon, RadioButtonIcon, XIcon } from '@modrinth/assets'
 import { Accordion, defineMessages, useVIntl } from '@modrinth/ui'
 import { computed, onUnmounted, ref } from 'vue'
 
+import { dismissHint, isHintDismissed } from '@/helpers/modlex-dismissed'
 import { injectOnboardingChecklist } from '@/providers/onboarding-checklist'
 
 const emit = defineEmits<{
@@ -84,7 +85,7 @@ onUnmounted(() => clearTimeout(collapseTimer))
 
 <template>
 	<div
-		v-if="isReady && showChecklist"
+		v-if="isReady && showChecklist && !isHintDismissed('onboarding-checklist')"
 		class="border-0 border-b-[1px] border-solid border-[--brand-gradient-border] px-3 p-4"
 	>
 		<Accordion
@@ -97,6 +98,16 @@ onUnmounted(() => clearTimeout(collapseTimer))
 		>
 			<template #title>
 				<span class="font-semibold leading-6">{{ formatMessage(messages.title) }}</span>
+				<span
+					role="button"
+					tabindex="0"
+					class="ml-auto mr-2 flex size-6 cursor-pointer items-center justify-center rounded-lg text-secondary hover:bg-button-bg-hover hover:text-contrast"
+					title="Скрыть"
+					@click.stop="dismissHint('onboarding-checklist')"
+					@keydown.enter.stop.prevent="dismissHint('onboarding-checklist')"
+				>
+					<XIcon class="size-4" />
+				</span>
 			</template>
 			<button
 				v-for="step in steps"

@@ -2,7 +2,15 @@
 
 <script setup lang="ts">
 import { RightArrowIcon } from '@modrinth/assets'
-import { type Component, type ComponentPublicInstance, computed, nextTick, ref } from 'vue'
+import {
+	type Component,
+	type ComponentPublicInstance,
+	computed,
+	nextTick,
+	onBeforeUnmount,
+	ref,
+	watch,
+} from 'vue'
 
 import { type MessageDescriptor, useVIntl } from '../../composables/i18n'
 import { useScrollIndicator } from '../../composables/scroll-indicator'
@@ -16,6 +24,9 @@ export interface Tab {
 	href?: string
 	badge?: MessageDescriptor
 	shown?: boolean
+	/** Под выбранной вкладкой показывать подпункты — секции контента с атрибутами
+	 * data-settings-anchor / data-settings-label; клик прокручивает к секции. */
+	anchors?: boolean
 }
 
 const { formatMessage } = useVIntl()
@@ -78,6 +89,59 @@ function setTab(index: number) {
 	selectedTab.value = index
 	nextTick(() => forceCheck())
 }
+
+const anchors = ref<{ id: string; label: string }[]>([])
+
+function refreshAnchors() {
+	const container = scrollContainer.value
+	if (!container || !visibleTabs.value[selectedTab.value]?.anchors) {
+		anchors.value = []
+		return
+	}
+	anchors.value = Array.from(container.querySelectorAll<HTMLElement>('[data-settings-anchor]'))
+		.filter((element) => element.style.display !== 'none')
+		.map((element) => ({
+			id: element.dataset.settingsAnchor ?? '',
+			label: element.dataset.settingsLabel ?? element.dataset.settingsAnchor ?? '',
+		}))
+}
+
+function scrollToAnchor(id: string) {
+	const target = Array.from(
+		scrollContainer.value?.querySelectorAll<HTMLElement>('[data-settings-anchor]') ?? [],
+	).find((element) => element.dataset.settingsAnchor === id)
+	target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+let anchorObserver: MutationObserver | null = null
+let anchorRefreshFrame = 0
+watch(
+	[scrollContainer, selectedTab],
+	() => {
+		anchorObserver?.disconnect()
+		anchorObserver = null
+		void nextTick(refreshAnchors)
+		if (!scrollContainer.value || !visibleTabs.value[selectedTab.value]?.anchors) return
+		anchorObserver = new MutationObserver(() => {
+			if (anchorRefreshFrame) return
+			anchorRefreshFrame = requestAnimationFrame(() => {
+				anchorRefreshFrame = 0
+				refreshAnchors()
+			})
+		})
+		anchorObserver.observe(scrollContainer.value, {
+			childList: true,
+			subtree: true,
+			attributes: true,
+			attributeFilter: ['style'],
+		})
+	},
+	{ flush: 'post' },
+)
+onBeforeUnmount(() => {
+	anchorObserver?.disconnect()
+	if (anchorRefreshFrame) cancelAnimationFrame(anchorRefreshFrame)
+})
 
 function show(event?: MouseEvent) {
 	modal.value?.show(event)
@@ -164,6 +228,20 @@ defineExpose({ show, hide, selectedTab, setTab })
 								</span>
 								<RightArrowIcon v-if="tab.href" class="ml-auto size-4 shrink-0" />
 							</component>
+							<div
+								v-if="tab.anchors && selectedTab === index && anchors.length"
+								class="mb-1 ml-5 flex shrink-0 flex-col gap-0.5 border-0 border-l border-solid border-divider pl-2"
+							>
+								<button
+									v-for="anchor in anchors"
+									:key="anchor.id"
+									type="button"
+									class="truncate rounded-lg border-none bg-transparent px-3 py-1 text-left text-sm font-medium text-secondary cursor-pointer transition-all hover:bg-button-bg hover:text-contrast"
+									@click="scrollToAnchor(anchor.id)"
+								>
+									{{ anchor.label }}
+								</button>
+							</div>
 						</template>
 					</div>
 

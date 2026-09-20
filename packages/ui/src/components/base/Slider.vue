@@ -97,11 +97,18 @@ watch(
 	},
 )
 
+// дробный шаг (0.1 с и т.п.) нельзя разбирать parseInt — дробная часть терялась бы
+const parseNumber = (value: string) => (Number.isInteger(props.step) ? parseInt(value) : parseFloat(value))
+
 const inputValueValid = (inputValue: number) => {
 	let newValue = inputValue || props.min
 
 	if (props.forceStep) {
-		newValue -= newValue % props.step
+		if (Number.isInteger(props.step)) {
+			newValue -= newValue % props.step
+		} else {
+			newValue = Number((Math.round(newValue / props.step) * props.step).toFixed(6))
+		}
 	}
 	newValue = Math.max(props.min, Math.min(newValue, props.max))
 
@@ -110,7 +117,7 @@ const inputValueValid = (inputValue: number) => {
 }
 
 const onInputWithSnap = (value: string) => {
-	let parsedValue = parseInt(value)
+	let parsedValue = parseNumber(value)
 
 	for (const snapPoint of props.snapPoints) {
 		const distance = Math.abs(snapPoint - parsedValue)
@@ -124,7 +131,7 @@ const onInputWithSnap = (value: string) => {
 }
 
 const onInput = (value: string) => {
-	inputValueValid(parseInt(value))
+	inputValueValid(parseNumber(value))
 }
 </script>
 

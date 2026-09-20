@@ -238,6 +238,7 @@ import {
 	users,
 } from '@/helpers/auth'
 import { currentAccountId as defaultUser, refreshCurrentAccountId } from '@/helpers/current-account'
+import { getSteveHeadUrl } from '@/helpers/modlex-steve-head'
 import { getPlayerHeadUrl } from '@/helpers/rendering/batch-skin-renderer.ts'
 import type { Skin } from '@/helpers/skins'
 import { get_available_skins } from '@/helpers/skins'
@@ -407,22 +408,9 @@ function accountKindLabel(kind: MinecraftCredential['kind'] | undefined) {
 // same head-cropping pipeline used for real skins, and fall back to the raw
 // sheet only for the instant before that resolves.
 const STEVE_HEAD_URL = ref<string>(steveSkinAsset)
-getPlayerHeadUrl({
-	texture_key: 'steve-fallback',
-	name: null,
-	section: null,
-	variant: 'CLASSIC',
-	cape_id: null,
-	texture: steveSkinAsset,
-	source: 'default',
-	is_equipped: false,
-} as Skin)
-	.then((url) => {
-		STEVE_HEAD_URL.value = url
-	})
-	.catch((error) => {
-		console.warn('Failed to render local Steve head fallback', error)
-	})
+getSteveHeadUrl().then((url) => {
+	STEVE_HEAD_URL.value = url
+})
 
 const avatarUrl = computed(() => {
 	if (equippedSkin.value?.texture_key) {

@@ -4,6 +4,7 @@ import {
 	EditIcon,
 	ExternalIcon,
 	EyeIcon,
+	EyeOffIcon,
 	FolderOpenIcon,
 	IssuesIcon,
 	MoreVerticalIcon,
@@ -42,6 +43,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { getInstanceIconUrl } from '@/helpers/instance'
+import { hideInstanceFromHome } from '@/helpers/modlex-home-hidden-instances'
 import { copyToClipboard, createInstanceShortcut } from '@/helpers/utils'
 import type {
 	ProtocolVersion,
@@ -232,6 +234,10 @@ const messages = defineMessages({
 	dontShowOnHome: {
 		id: 'instance.worlds.dont_show_on_home',
 		defaultMessage: `Don't show on Home`,
+	},
+	hideInstanceFromHome: {
+		id: 'instance.worlds.modlex_hide_instance_from_home',
+		defaultMessage: 'Hide instance from Home',
 	},
 	createShortcut: {
 		id: 'instance.worlds.create_shortcut',
@@ -538,6 +544,12 @@ const messages = defineMessages({
 							},
 						},
 						{
+							id: 'modlex-hide-instance-from-home',
+							label: formatMessage(messages.hideInstanceFromHome),
+							shown: !!instanceId,
+							action: () => hideInstanceFromHome(instanceId as string),
+						},
+						{
 							id: 'create-shortcut',
 							label: formatMessage(messages.createShortcut),
 							shown: !!shortcutInstanceId && !quarantined,
@@ -596,6 +608,10 @@ const messages = defineMessages({
 					<template #dont-show-on-home>
 						<XIcon aria-hidden="true" />
 						{{ formatMessage(messages.dontShowOnHome) }}
+					</template>
+					<template #modlex-hide-instance-from-home>
+						<EyeOffIcon aria-hidden="true" />
+						{{ formatMessage(messages.hideInstanceFromHome) }}
 					</template>
 					<template #delete>
 						<TrashIcon aria-hidden="true" />

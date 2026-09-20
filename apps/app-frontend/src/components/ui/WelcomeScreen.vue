@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { ImportIcon, PlusIcon } from '@modrinth/assets'
 import { Button, defineMessages, IntlFormatted, useVIntl } from '@modrinth/ui'
+import { injectPopupNotificationManager } from '@modrinth/ui'
 import { inject, onMounted, onUnmounted, ref } from 'vue'
+
+import {
+	detectModrinthApp,
+	importModrinthInstances,
+	type ModrinthDetection,
+} from '@/helpers/modlex-modrinth-sync'
 
 import modrinthSocialIcon from '../../assets/welcome/modrinth-social-icon.png'
 
@@ -9,6 +16,30 @@ const showCreationModal = inject<() => void>('showCreationModal')
 const showImportModal = inject<() => void>('showImportModal')
 
 const { formatMessage } = useVIntl()
+const popup = injectPopupNotificationManager()
+
+// Раньше сидел на Modrinth App? Предлагаем сразу перенести все его инстансы.
+const modrinthDetection = ref<ModrinthDetection | null>(null)
+const modrinthSyncing = ref(false)
+async function syncModrinth() {
+	const detection = modrinthDetection.value
+	if (!detection || modrinthSyncing.value) return
+	modrinthSyncing.value = true
+	try {
+		const result = await importModrinthInstances(detection.path, detection.fresh)
+		popup.addPopupNotification({
+				contentType: 'standard',
+			title: 'Перенос запущен',
+			text:
+				`Запущено: ${result.imported.length}. Инстансы появятся в списке, когда копирование закончится.` +
+				(result.failed.length ? ` Не удалось: ${result.failed.join(', ')}.` : ''),
+			type: result.failed.length ? 'info' : 'success',
+		})
+		modrinthDetection.value = null
+	} finally {
+		modrinthSyncing.value = false
+	}
+}
 
 const messages = defineMessages({
 	welcomeTitle: {
@@ -67,7 +98,8 @@ function handleQuickCreate(event: KeyboardEvent) {
 	}
 }
 
-onMounted(() => {
+onMounted(async () => {
+	modrinthDetection.value = await detectModrinthApp().catch(() => null)
 	window.addEventListener('offline', handleOffline)
 	window.addEventListener('online', handleOnline)
 	window.addEventListener('keydown', handleQuickCreate)
@@ -123,6 +155,26 @@ onUnmounted(() => {
 						</IntlFormatted>
 					</span>
 				</div>
+			</div>
+		</div>
+		<div
+			v-if="modrinthDetection && modrinthDetection.fresh.length > 0"
+			class="mx-auto mb-6 flex max-w-md flex-col items-center gap-3 rounded-2xl border border-solid border-surface-5 bg-button-bg p-4 text-center"
+		>
+			<span class="text-base font-semibold text-contrast">
+				Нашли Modrinth App: {{ modrinthDetection.fresh.length }} инстансов
+			</span>
+			<span class="text-sm text-secondary">
+				Можно перенести их все сразу — миры, моды и настройки останутся как были.
+			</span>
+			<div class="flex flex-wrap justify-center gap-2">
+				<Button type="colored" color="brand" :disabled="modrinthSyncing || offline" @click="syncModrinth">
+					<ImportIcon />
+					{{ modrinthSyncing ? 'Переносим…' : 'Синхронизировать все' }}
+				</Button>
+				<Button :disabled="modrinthSyncing || offline" @click="showImportModal?.()">
+					Выбрать
+				</Button>
 			</div>
 		</div>
 		<div

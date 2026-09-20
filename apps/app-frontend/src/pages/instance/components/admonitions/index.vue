@@ -22,6 +22,8 @@
 			/>
 			<InstanceAdmonitionsOfflineMultiplayerVersionQuirk
 				v-else-if="item.kind === 'offline-multiplayer-version-quirk'"
+				:dismissible="dismissible"
+				@dismiss="dismissHint('offline-multiplayer-quirk')"
 			/>
 		</template>
 	</StackedAdmonitions>
@@ -32,6 +34,7 @@ import { StackedAdmonitions } from '@modrinth/ui'
 import { computed, onMounted, ref, watch } from 'vue'
 
 import { users } from '@/helpers/auth'
+import { dismissHint, isHintDismissed } from '@/helpers/modlex-dismissed'
 import { currentAccountId } from '@/helpers/current-account'
 import type { SharedInstanceUnavailableReason } from '@/helpers/install'
 import type { GameInstance } from '@/helpers/types'
@@ -85,6 +88,7 @@ const currentAccountKindAffected = computed(() => {
 const showOfflineMultiplayerQuirkAdmonition = computed(
 	() =>
 		currentAccountKindAffected.value &&
+		!isHintDismissed('offline-multiplayer-quirk') &&
 		OFFLINE_MULTIPLAYER_QUIRK_VERSIONS.has(props.instance.game_version),
 )
 

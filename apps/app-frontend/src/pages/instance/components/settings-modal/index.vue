@@ -6,6 +6,7 @@ import {
 	CoffeeIcon,
 	InfoIcon,
 	MonitorIcon,
+	PaletteIcon,
 	UsersIcon,
 	WrenchIcon,
 } from '@modrinth/assets'
@@ -21,12 +22,14 @@ import type { PlatformTag } from '@modrinth/utils'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, nextTick, ref, watch } from 'vue'
 
+import { useFeatureFlag } from '@/helpers/feature-flags'
 import { get_project_v3 } from '@/helpers/cache'
 import { get_linked_modpack_info, getInstanceIconUrl } from '@/helpers/instance'
 import { get_loader_versions } from '@/helpers/metadata'
 import { get_game_versions, get_loaders } from '@/helpers/tags'
 import type { GameInstance } from '@/helpers/types'
 
+import CustomizationSettings from './customization-settings.vue'
 import GeneralSettings from './general-settings.vue'
 import HooksSettings from './hooks-settings.vue'
 import InstallationSettings from './installation-settings.vue'
@@ -36,6 +39,7 @@ import SharingSettings from './sharing-settings.vue'
 import WindowSettings from './window-settings.vue'
 
 const { formatMessage } = useVIntl()
+const { enabled: customizationEnabled } = useFeatureFlag('instance_customization')
 const queryClient = useQueryClient()
 
 const props = defineProps<{
@@ -106,6 +110,15 @@ const tabs = computed<TabbedModalTab[]>(() => [
 		icon: UsersIcon,
 		content: SharingSettings,
 		shown: props.instance.shared_instance?.role === 'owner' && !props.instance.quarantined,
+	},
+	{
+		name: defineMessage({
+			id: 'instance.settings.tabs.modlex-customization',
+			defaultMessage: 'Оформление',
+		}),
+		icon: PaletteIcon,
+		content: CustomizationSettings,
+		shown: customizationEnabled.value,
 	},
 	{
 		name: defineMessage({

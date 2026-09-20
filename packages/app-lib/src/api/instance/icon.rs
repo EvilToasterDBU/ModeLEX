@@ -56,6 +56,21 @@ pub async fn edit_icon(
     apply_instance_icon(instance_id, icon_path, None, &state).await
 }
 
+/// Ставит иконку из файла и запоминает id, из которых она сгенерирована (если известны): так
+/// иконка, приехавшая вместе со сборкой, остаётся редактируемой в редакторе иконок.
+pub(crate) async fn edit_icon_with_config(
+    instance_id: &str,
+    icon_path: &Path,
+    config: Option<InstanceIconConfig>,
+) -> crate::Result<()> {
+    let state = State::get().await?;
+    let cached = cache_icon_from_path(icon_path, &state)
+        .await?
+        .to_string_lossy()
+        .to_string();
+    apply_instance_icon(instance_id, Some(cached), config, &state).await
+}
+
 pub async fn edit_generated_icon(
     instance_id: &str,
     config: InstanceIconConfig,

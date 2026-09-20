@@ -459,6 +459,151 @@ export async function get_recent_icon_configs(): Promise<InstanceIconConfig[]> {
 	return await invoke('plugin:instance|instance_get_recent_icon_configs')
 }
 
+export type CustomizationAnimate = 'hover' | 'always' | 'never'
+
+export type FaceCustomization = {
+	image: string | null
+	hover: string | null
+	animate: CustomizationAnimate
+	focus: [number, number] | null
+	/** Масштаб картинки в кадре, 1..3 */
+	zoom: number | null
+	accent: string | null
+	/** Слой поверх содержимого (полупрозрачная картинка), не перехватывает мышь */
+	overlay: string | null
+	overlayFocus: [number, number] | null
+	overlayZoom: number | null
+	overlayOpacity: number | null
+}
+
+export type PageCustomization = {
+	banner: string | null
+	background: string | null
+	animate: CustomizationAnimate
+	accent: string | null
+	bannerFocus: [number, number] | null
+	bannerZoom: number | null
+	backgroundFocus: [number, number] | null
+	backgroundZoom: number | null
+	overlay: string | null
+	overlayFocus: [number, number] | null
+	overlayZoom: number | null
+	overlayOpacity: number | null
+}
+
+/** Проверенное оформление инстанса от автора сборки (см. docs/CUSTOMIZATION_SPEC.md). Пути к
+ * файлам абсолютные — для показа через convertFileSrc. */
+export type InstanceCustomization = {
+	schema: number
+	author: string | null
+	header: FaceCustomization | null
+	card: FaceCustomization | null
+	page: PageCustomization | null
+	logo: string | null
+	warnings: string[]
+}
+
+export async function get_customization(instanceId: string): Promise<InstanceCustomization | null> {
+	return await invoke('plugin:instance|instance_get_customization', { instanceId })
+}
+
+export type CustomizationSlot =
+	| 'header.image'
+	| 'header.hover'
+	| 'card.image'
+	| 'card.hover'
+	| 'page.banner'
+	| 'page.background'
+	| 'logo.file'
+	| 'header.overlay'
+	| 'card.overlay'
+	| 'page.overlay'
+
+export type FaceOptions = {
+	animate?: CustomizationAnimate | null
+	focus?: [number, number] | null
+	zoom?: number | null
+	accent?: string | null
+	overlayFocus?: [number, number] | null
+	overlayZoom?: number | null
+	overlayOpacity?: number | null
+}
+
+export type PageOptions = {
+	animate?: CustomizationAnimate | null
+	accent?: string | null
+	bannerFocus?: [number, number] | null
+	bannerZoom?: number | null
+	backgroundFocus?: [number, number] | null
+	backgroundZoom?: number | null
+	overlayFocus?: [number, number] | null
+	overlayZoom?: number | null
+	overlayOpacity?: number | null
+}
+
+/** Настройки оформления без файлов. Состояние передаётся целиком: отсутствующее поле — «убрать». */
+export type CustomizationOptions = {
+	author?: string | null
+	header?: FaceOptions
+	card?: FaceOptions
+	page?: PageOptions
+}
+
+/** Кладёт картинку в слот оформления; `sourcePath = null` — очистить слот. */
+export async function set_customization_asset(
+	instanceId: string,
+	slot: CustomizationSlot,
+	sourcePath: string | null,
+): Promise<InstanceCustomization | null> {
+	return await invoke('plugin:instance|instance_set_customization_asset', {
+		instanceId,
+		slot,
+		sourcePath,
+	})
+}
+
+export async function set_customization_options(
+	instanceId: string,
+	options: CustomizationOptions,
+): Promise<InstanceCustomization | null> {
+	return await invoke('plugin:instance|instance_set_customization_options', {
+		instanceId,
+		options,
+	})
+}
+
+export async function clear_customization(instanceId: string): Promise<void> {
+	return await invoke('plugin:instance|instance_clear_customization', { instanceId })
+}
+
+/** Упаковывает оформление в архив (переносить между инстансами, делиться). */
+export async function export_customization(
+	instanceId: string,
+	destinationPath: string,
+): Promise<void> {
+	return await invoke('plugin:instance|instance_export_customization', {
+		instanceId,
+		destinationPath,
+	})
+}
+
+/** Заменяет оформление инстанса содержимым архива. */
+export async function import_customization(
+	instanceId: string,
+	sourcePath: string,
+): Promise<InstanceCustomization | null> {
+	return await invoke('plugin:instance|instance_import_customization', {
+		instanceId,
+		sourcePath,
+	})
+}
+
+/** Применяет иконку из оформления (папка modlex/) к инстансу. Без force — только если у инстанса
+ * ещё стандартная иконка. Возвращает true, если иконка применена. */
+export async function apply_customization_icon(instanceId: string, force = false): Promise<boolean> {
+	return await invoke('plugin:instance|instance_apply_customization_icon', { instanceId, force })
+}
+
 export type SharedInstanceUsers = {
 	user_ids: string[]
 	users: SharedInstanceUser[]

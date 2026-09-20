@@ -64,6 +64,13 @@ pub fn init<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
             instance_edit_generated_icon,
             instance_cache_generated_icon,
             instance_get_recent_icon_configs,
+            instance_get_customization,
+            instance_set_customization_asset,
+            instance_set_customization_options,
+            instance_clear_customization,
+            instance_export_customization,
+            instance_import_customization,
+            instance_apply_customization_icon,
             instance_share_can_current_user_use,
             instance_share_get_users,
             instance_share_invite_users,
@@ -946,6 +953,110 @@ pub async fn instance_cache_generated_icon(
 pub async fn instance_get_recent_icon_configs()
 -> Result<Vec<theseus::data::InstanceIconConfig>> {
     Ok(theseus::instance::get_recent_icon_configs().await?)
+}
+
+/// Картинки оформления лежат в папке инстанса, которой нет в статической области asset-протокола
+/// (папка данных лаунчера может быть где угодно). Разрешаем webview ровно файлы, которые вернулись
+/// из проверенного оформления, — как это уже сделано для иконок миров.
+fn allow_customization_assets<R: tauri::Runtime>(
+    app_handle: &tauri::AppHandle<R>,
+    customization: &Option<theseus::instance::InstanceCustomization>,
+) {
+    use tauri::Manager;
+
+    let Some(customization) = customization else {
+        return;
+    };
+    let face_paths = |face: &Option<theseus::instance::FaceCustomization>| {
+        face.iter()
+            .flat_map(|face| [face.image.clone(), face.hover.clone(), face.overlay.clone()])
+            .flatten()
+            .collect::<Vec<_>>()
+    };
+    let mut paths = face_paths(&customization.header);
+    paths.extend(face_paths(&customization.card));
+    if let Some(page) = &customization.page {
+        paths.extend(page.banner.clone());
+        paths.extend(page.background.clone());
+        paths.extend(page.overlay.clone());
+    }
+    paths.extend(customization.logo.clone());
+
+    for path in paths {
+        if let Err(error) = app_handle.asset_protocol_scope().allow_file(&path) {
+            tracing::warn!(
+                "Failed to allow asset access for customization file {path}: {error}"
+            );
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn instance_get_customization<R: tauri::Runtime>(
+    app_handle: tauri::AppHandle<R>,
+    instance_id: &str,
+) -> Result<Option<theseus::instance::InstanceCustomization>> {
+    let customization = theseus::instance::get_customization(instance_id).await?;
+    allow_customization_assets(&app_handle, &customization);
+    Ok(customization)
+}
+
+#[tauri::command]
+pub async fn instance_set_customization_asset<R: tauri::Runtime>(
+    app_handle: tauri::AppHandle<R>,
+    instance_id: &str,
+    slot: &str,
+    source_path: Option<&Path>,
+) -> Result<Option<theseus::instance::InstanceCustomization>> {
+    let customization =
+        theseus::instance::set_customization_asset(instance_id, slot, source_path).await?;
+    allow_customization_assets(&app_handle, &customization);
+    Ok(customization)
+}
+
+#[tauri::command]
+pub async fn instance_set_customization_options<R: tauri::Runtime>(
+    app_handle: tauri::AppHandle<R>,
+    instance_id: &str,
+    options: theseus::instance::CustomizationOptions,
+) -> Result<Option<theseus::instance::InstanceCustomization>> {
+    let customization =
+        theseus::instance::set_customization_options(instance_id, options).await?;
+    allow_customization_assets(&app_handle, &customization);
+    Ok(customization)
+}
+
+#[tauri::command]
+pub async fn instance_clear_customization(instance_id: &str) -> Result<()> {
+    Ok(theseus::instance::clear_customization(instance_id).await?)
+}
+
+#[tauri::command]
+pub async fn instance_export_customization(
+    instance_id: &str,
+    destination_path: &Path,
+) -> Result<()> {
+    Ok(theseus::instance::export_customization(instance_id, destination_path).await?)
+}
+
+#[tauri::command]
+pub async fn instance_import_customization<R: tauri::Runtime>(
+    app_handle: tauri::AppHandle<R>,
+    instance_id: &str,
+    source_path: &Path,
+) -> Result<Option<theseus::instance::InstanceCustomization>> {
+    let customization =
+        theseus::instance::import_customization(instance_id, source_path).await?;
+    allow_customization_assets(&app_handle, &customization);
+    Ok(customization)
+}
+
+#[tauri::command]
+pub async fn instance_apply_customization_icon(
+    instance_id: &str,
+    force: Option<bool>,
+) -> Result<bool> {
+    Ok(theseus::instance::apply_customization_icon(instance_id, force.unwrap_or(false)).await?)
 }
 
 #[tauri::command]

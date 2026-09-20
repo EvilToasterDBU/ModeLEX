@@ -27,6 +27,8 @@ const DEFAULT_SELECTED_EXPORT_PATH_PREFIXES: &[&str] = &[
     "resourcepacks",
     "shaderpacks",
     "config",
+    // оформление инстанса от автора сборки (см. docs/CUSTOMIZATION_SPEC.md); снять галочку можно в дереве файлов
+    "modlex",
 ];
 const EXPORT_CANDIDATE_METADATA_CONCURRENCY: usize = 32;
 const EXPORT_COPY_BUFFER_SIZE: usize = 256 * 1024;
@@ -47,6 +49,7 @@ const NEVER_EXPORTABLE_PATH_PREFIXES: &[&str] = &[
     ".mixin.out",
     ".fabric",
     "__MACOSX",
+    ".modlex-import",
 ];
 const NEVER_EXPORTABLE_PATH_SUFFIXES: &[&str] = &[".DS_Store"];
 
@@ -177,6 +180,14 @@ pub async fn export_mrpack(
             "Tried to export a nonexistent instance {instance_id}!"
         ))
     })?;
+    // иконка инстанса едет вместе с оформлением (папка modlex/) — при импорте её применят
+    if let Err(error) = super::customization::sync_icon(instance_id).await {
+        tracing::warn!(
+            instance_id,
+            error = %error,
+            "Failed to add instance icon to the export"
+        );
+    }
     let export_selection = ExportSelection::new(
         included_export_candidates,
         excluded_export_candidates,

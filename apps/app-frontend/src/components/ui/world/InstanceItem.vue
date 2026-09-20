@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
 	EyeIcon,
+	EyeOffIcon,
 	FolderOpenIcon,
 	MoreVerticalIcon,
 	PlayIcon,
@@ -27,10 +28,14 @@ import type { Dayjs } from 'dayjs'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import InstanceFaceBackdrop from '@/components/ui/InstanceFaceBackdrop.vue'
+import InstanceFaceOverlay from '@/components/ui/InstanceFaceOverlay.vue'
 import { useAppEvent } from '@/composables/use-app-event'
 import { handleSevereError } from '@/composables/use-error.js'
 import { trackEvent } from '@/helpers/analytics'
 import { getInstanceIconUrl, kill, run } from '@/helpers/instance'
+import { hideInstanceFromHome } from '@/helpers/modlex-home-hidden-instances'
+import { useInstanceCustomization } from '@/helpers/modlex-instance-customization'
 import { get_by_instance_id } from '@/helpers/process'
 import type { GameInstance } from '@/helpers/types'
 import { showInstanceInFolder } from '@/helpers/utils'
@@ -54,6 +59,15 @@ const props = defineProps<{
 	last_played: Dayjs
 	newlyAdded?: boolean
 }>()
+
+// оформление хедера инстанса от автора сборки (docs/CUSTOMIZATION_SPEC.md)
+const {
+	customization,
+	animations: customizationAnimations,
+	src: customizationSrc,
+} = useInstanceCustomization(() => props.instance.id)
+const stripFace = computed(() => customization.value?.header ?? null)
+const stripHovered = ref(false)
 
 const messages = defineMessages({
 	newInstance: {
@@ -79,6 +93,10 @@ const messages = defineMessages({
 	viewInstance: {
 		id: 'app.home.jump-back-in.view-instance',
 		defaultMessage: 'View instance',
+	},
+	hideFromHome: {
+		id: 'app.home.jump-back-in.modlex-hide-from-home',
+		defaultMessage: 'Hide from Home',
 	},
 })
 
@@ -146,6 +164,8 @@ onMounted(() => {
 })
 </script>
 <template>
+	<!-- наведение ловим снаружи: содержимое SmartClickable имеет pointer-events: none, а ссылка поверх него не пробрасывает mouseenter внутрь -->
+	<div @mouseenter="stripHovered = true" @mouseleave="stripHovered = false">
 	<SmartClickable class="[--active-scale:0.99]">
 		<template #clickable>
 			<router-link
@@ -154,17 +174,26 @@ onMounted(() => {
 			/>
 		</template>
 		<div
-			class="clickable-card grid grid-cols-[auto_minmax(0,3fr)_minmax(0,4fr)_auto] items-center gap-2 border border-surface-4 rounded-[20px] smart-clickable:highlight-on-hover transition-[filter] ease-out [--hover-brightness:1.1] min-h-20 p-3"
-			:class="newlyAdded ? 'border-dashed bg-surface-2' : 'bg-bg-raised border-solid'"
+			class="clickable-card relative isolate grid grid-cols-[auto_minmax(0,3fr)_minmax(0,4fr)_auto] items-center gap-2 border border-surface-4 rounded-[20px] smart-clickable:highlight-on-hover transition-[filter] ease-out [--hover-brightness:1.1] min-h-20 p-3"
+			:class="[newlyAdded ? 'border-dashed bg-surface-2' : 'bg-bg-raised border-solid', { 'overflow-hidden': stripFace }]"
+			:style="stripHovered && stripFace?.accent ? { borderColor: stripFace.accent } : undefined"
 		>
+			<InstanceFaceBackdrop
+				:face="stripFace"
+				:src="customizationSrc"
+				:animations="customizationAnimations"
+				:hovered="stripHovered"
+				variant="strip"
+				:max-size="900"
+			/>
 			<Avatar
 				:src="getInstanceIconUrl(instanceIcon)"
 				:tint-by="instance.id"
 				no-shadow
-				class="!rounded-[14px]"
+				class="relative z-[1] !rounded-[14px]"
 				size="48px"
 			/>
-			<div class="flex flex-col col-span-2 justify-center gap-1 h-full">
+			<div class="relative z-[1] flex flex-col col-span-2 justify-center gap-1 h-full">
 				<div class="flex items-center gap-1.5">
 					<div class="text-contrast truncate text-base font-semibold">
 						{{ instance.name }}
@@ -200,7 +229,7 @@ onMounted(() => {
 					</div>
 				</div>
 			</div>
-			<div data-no-card-click class="flex gap-1 justify-end smart-clickable:allow-pointer-events">
+			<div data-no-card-click class="relative z-[1] flex gap-1 justify-end smart-clickable:allow-pointer-events">
 				<Button v-if="playing && !loading" type="colored" color="red" @click="stop">
 					<StopCircleIcon aria-hidden="true" />
 					{{ formatMessage(commonMessages.stopButton) }}
@@ -238,6 +267,11 @@ onMounted(() => {
 							label: formatMessage(commonMessages.openFolderButton),
 							action: () => showInstanceInFolder(instance.id),
 						},
+						{
+							id: 'modlex-hide-from-home',
+							label: formatMessage(messages.hideFromHome),
+							action: () => hideInstanceFromHome(instance.id),
+						},
 					]"
 				>
 					<MoreVerticalIcon aria-hidden="true" />
@@ -249,10 +283,22 @@ onMounted(() => {
 						<FolderOpenIcon aria-hidden="true" />
 						{{ formatMessage(commonMessages.openFolderButton) }}
 					</template>
+					<template #modlex-hide-from-home>
+						<EyeOffIcon aria-hidden="true" />
+						{{ formatMessage(messages.hideFromHome) }}
+					</template>
 				</TeleportOverflowMenu>
 			</div>
+			<InstanceFaceOverlay
+				:face="stripFace"
+				:src="customizationSrc"
+				:animations="customizationAnimations"
+				:hovered="stripHovered"
+				:max-size="900"
+			/>
 		</div>
 	</SmartClickable>
+	</div>
 </template>
 <style scoped>
 .clickable-card:has([data-no-card-click]:hover) {

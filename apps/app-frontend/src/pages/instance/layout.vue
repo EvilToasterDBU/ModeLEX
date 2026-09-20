@@ -1,9 +1,32 @@
 <template>
-	<div v-if="instance" :class="{ 'flex h-full flex-col': isFixedRender }">
+	<div v-if="instance" :class="['relative min-h-full', { 'flex h-full flex-col': isFixedRender }]">
+		<InstancePageBackdrop
+			part="background"
+			:page="instanceCustomization?.page ?? null"
+			:src="customizationSrc"
+			:animations="customizationAnimations"
+			:hovered="pageHovered"
+		/>
 		<div
-			:class="['p-6 pr-2 pb-4', { 'shrink-0': isFixedRender }]"
+			:class="['relative z-[1] p-6 pr-2 pb-4', { 'shrink-0': isFixedRender }]"
 			@contextmenu.prevent.stop="(event) => handleRightClick(event)"
+			@mouseenter="pageHovered = true"
+			@mouseleave="pageHovered = false"
 		>
+			<InstancePageBackdrop
+				part="banner"
+				:page="instanceCustomization?.page ?? null"
+				:src="customizationSrc"
+				:animations="customizationAnimations"
+				:hovered="pageHovered"
+			/>
+			<InstancePageBackdrop
+				part="overlay"
+				:page="instanceCustomization?.page ?? null"
+				:src="customizationSrc"
+				:animations="customizationAnimations"
+				:hovered="pageHovered"
+			/>
 			<ExportModal v-if="!instance.quarantined" ref="exportModal" :instance="instance" />
 			<ConfirmDeleteInstanceModal
 				ref="deleteConfirmModal"
@@ -72,7 +95,7 @@
 				@report="reportSharedInstance"
 			/>
 		</div>
-		<div :class="['px-6', { 'shrink-0': isFixedRender }]">
+		<div :class="['relative z-[1] px-6', { 'shrink-0': isFixedRender }]">
 			<NavTabs :links="tabs" />
 			<InstanceAdmonitions
 				class="mt-4"
@@ -87,7 +110,7 @@
 				@delete="requestInstanceDeletion"
 			/>
 		</div>
-		<div :class="['p-6 pt-4', { 'min-h-0 flex-1 overflow-y-auto': isFixedRender }]">
+		<div :class="['relative z-[1] p-6 pt-4', { 'min-h-0 flex-1 overflow-y-auto': isFixedRender }]">
 			<RouterView v-slot="{ Component }">
 				<template v-if="Component">
 					<Suspense
@@ -138,6 +161,12 @@ import { useOnline } from '@vueuse/core'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { computed, type ComputedRef, onUnmounted, ref, shallowRef, watch } from 'vue'
+
+import InstancePageBackdrop from '@/components/ui/InstancePageBackdrop.vue'
+import {
+	isPossiblyAnimated,
+	useInstanceCustomization,
+} from '@/helpers/modlex-instance-customization'
 import { onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 
 import ContextMenu from '@/components/ui/context-menu/index.vue'
@@ -994,7 +1023,21 @@ useAppEvent('process', (event) => {
 	void updatePlayState()
 })
 
-const icon = computed(() => getInstanceIconUrl(instance.value?.icon_path))
+// оформление от автора сборки: баннер/фон страницы и логотип вместо значка (docs/CUSTOMIZATION_SPEC.md)
+const {
+	customization: instanceCustomization,
+	animations: customizationAnimations,
+	src: customizationSrc,
+} = useInstanceCustomization(() => instance.value?.id)
+const pageHovered = ref(false)
+const icon = computed(() => {
+	const logo = instanceCustomization.value?.logo
+	// анимированный логотип при выключенных анимациях не показываем: заморозить его внутри Avatar нельзя
+	if (logo && (customizationAnimations.value || !isPossiblyAnimated(logo))) {
+		return customizationSrc(logo) ?? getInstanceIconUrl(instance.value?.icon_path)
+	}
+	return getInstanceIconUrl(instance.value?.icon_path)
+})
 
 const timePlayed = computed(() => {
 	return instance.value

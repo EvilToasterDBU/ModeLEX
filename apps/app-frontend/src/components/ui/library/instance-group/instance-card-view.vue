@@ -2,23 +2,40 @@
 import { Avatar, truncatedTooltip } from '@modrinth/ui'
 import { computed, ref } from 'vue'
 
+import InstanceFaceBackdrop from '@/components/ui/InstanceFaceBackdrop.vue'
+import InstanceFaceOverlay from '@/components/ui/InstanceFaceOverlay.vue'
 import { useAppSettings } from '@/composables/use-app-settings.ts'
 import { getInstanceIconUrl } from '@/helpers/instance'
+import { useInstanceCustomization } from '@/helpers/modlex-instance-customization'
 import type { GameInstance } from '@/helpers/types'
 
 const props = withDefaults(
 	defineProps<{
 		instance: GameInstance
 		selected?: boolean
+		/** Предпросмотр в редакторе оформления: показывать оформление вне зависимости от настроек */
+		preview?: boolean
+		forceHovered?: boolean
 	}>(),
 	{
 		selected: false,
+		preview: false,
+		forceHovered: false,
 	},
 )
 
 const iconSrc = computed(() => getInstanceIconUrl(props.instance.icon_path))
 const appSettings = useAppSettings()
 const compactMode = computed(() => appSettings.getFeatureFlag('compact_instance_cards'))
+
+const { customization, animations, src: customizationSrc } = useInstanceCustomization(
+	() => props.instance.id,
+	{ force: props.preview },
+)
+const hoveredByMouse = ref(false)
+const hovered = computed(() => hoveredByMouse.value || props.forceHovered)
+const cardFace = computed(() => customization.value?.card ?? null)
+const accent = computed(() => cardFace.value?.accent ?? null)
 
 const nameRef = ref<HTMLElement | null>(null)
 const versionRef = ref<HTMLElement | null>(null)
@@ -34,9 +51,18 @@ const versionRef = ref<HTMLElement | null>(null)
 				selected,
 			'border-surface-4': !selected,
 		}"
+		:style="hovered && accent ? { borderColor: accent } : undefined"
+		@mouseenter="hoveredByMouse = true"
+		@mouseleave="hoveredByMouse = false"
 	>
+		<InstanceFaceBackdrop
+			:face="cardFace"
+			:src="customizationSrc"
+			:animations="animations"
+			:hovered="hovered"
+		/>
 		<div
-			class="relative flex shrink-0 items-center overflow-clip"
+			class="relative z-[1] flex shrink-0 items-center overflow-clip"
 			:class="compactMode ? 'size-10 rounded-lg' : 'aspect-square min-w-full rounded-2xl'"
 		>
 			<Avatar
@@ -57,7 +83,7 @@ const versionRef = ref<HTMLElement | null>(null)
 			</div>
 		</div>
 		<div
-			class="flex min-w-0 w-full flex-col items-start justify-center gap-1 px-0.5"
+			class="relative z-[1] flex min-w-0 w-full flex-col items-start justify-center gap-1 px-0.5"
 			:class="{ 'pr-10': compactMode }"
 		>
 			<p
@@ -76,5 +102,11 @@ const versionRef = ref<HTMLElement | null>(null)
 			</p>
 		</div>
 		<slot name="overlay" :compact="compactMode" />
+		<InstanceFaceOverlay
+			:face="cardFace"
+			:src="customizationSrc"
+			:animations="animations"
+			:hovered="hovered"
+		/>
 	</div>
 </template>

@@ -56,6 +56,12 @@ export const LOCAL_FEATURE_FLAGS: FeatureFlags = {
 	multi_account_launch: {
 		enabled: false,
 	},
+	// Оформление инстанса от автора сборки (docs/CUSTOMIZATION_SPEC.md). Включено для всех; флаг
+	// остаётся аварийным выключателем — его можно погасить удалённо через flags.json.
+	instance_customization: {
+		enabled: true,
+		locked: false,
+	},
 	modlex_music: {
 		enabled: false,
 	},

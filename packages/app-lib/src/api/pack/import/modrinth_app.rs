@@ -33,6 +33,22 @@ fn db_path(base_path: &Path) -> PathBuf {
     base_path.join("app.db")
 }
 
+/// Папка данных Modrinth App: у него в настройках можно задать свою (`custom_dir`), и тогда профили лежат
+/// там, а не в `%APPDATA%/ModrinthApp`. Берём её, если задана и существует.
+async fn data_dir(conn: &mut SqliteConnection, base_path: &Path) -> PathBuf {
+    let custom: Option<String> =
+        sqlx::query_scalar::<_, Option<String>>("SELECT custom_dir FROM settings LIMIT 1")
+            .fetch_optional(&mut *conn)
+            .await
+            .ok()
+            .flatten()
+            .flatten();
+    match custom {
+        Some(dir) if !dir.trim().is_empty() && Path::new(&dir).is_dir() => PathBuf::from(dir),
+        _ => base_path.to_path_buf(),
+    }
+}
+
 pub async fn get_instances(base_path: &Path) -> crate::Result<Vec<String>> {
     let mut conn = match open_read_only(&db_path(base_path)).await {
         Ok(conn) => conn,
@@ -42,14 +58,35 @@ pub async fn get_instances(base_path: &Path) -> crate::Result<Vec<String>> {
         Err(_) => return Ok(Vec::new()),
     };
 
-    let names: Vec<String> = sqlx::query_scalar(
-        "SELECT name FROM instances ORDER BY name COLLATE NOCASE",
+    let rows: Vec<(String, String)> = sqlx::query_as(
+        "SELECT name, path FROM instances ORDER BY name COLLATE NOCASE",
     )
     .fetch_all(&mut conn)
     .await
     .unwrap_or_default();
+    let profiles = data_dir(&mut conn, base_path).await.join("profiles");
 
-    Ok(names)
+    // запись без папки на диске импортировать нечего — не предлагаем её
+    let rows: Vec<(String, String)> = rows
+        .into_iter()
+        .filter(|(_, path)| profiles.join(path).is_dir())
+        .collect();
+
+    // у нескольких инстансов может быть одно имя — тогда различаем их по имени папки
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    for (name, _) in &rows {
+        *counts.entry(name.to_lowercase()).or_default() += 1;
+    }
+    Ok(rows
+        .into_iter()
+        .map(|(name, path)| {
+            if counts.get(&name.to_lowercase()).copied().unwrap_or(0) > 1 {
+                path
+            } else {
+                name
+            }
+        })
+        .collect())
 }
 
 struct ModrinthAppInstanceRow {
@@ -68,8 +105,8 @@ async fn get_instance_row(
         "SELECT i.path, i.icon_path, cs.game_version, cs.loader, cs.loader_version \
          FROM instances i \
          LEFT JOIN instance_content_sets cs ON cs.id = i.applied_content_set_id \
-         WHERE i.name = ?1 \
-         ORDER BY i.modified DESC LIMIT 1",
+         WHERE i.path = ?1 OR i.name = ?1 \
+         ORDER BY (i.path = ?1) DESC, i.modified DESC LIMIT 1",
     )
     .bind(instance_name)
     .fetch_optional(conn)
@@ -98,14 +135,34 @@ pub async fn import_modrinth_app_instance(
 ) -> crate::Result<()> {
     let mut conn = open_read_only(&db_path(&base_path)).await?;
     let row = get_instance_row(&mut conn, &instance_name).await?;
+    let data_dir = data_dir(&mut conn, &base_path).await;
     // Close the connection promptly rather than holding it for the whole
     // (potentially slow) file copy below.
     drop(conn);
 
-    let icon = if let Some(icon_path) = row.icon_path {
-        import::recache_icon(base_path.join(icon_path)).await?
-    } else {
-        None
+    // без папки инстанса копировать нечего — понятная ошибка вместо «исчезнувшего» инстанса
+    let instance_folder = data_dir.join("profiles").join(&row.path);
+    if !instance_folder.is_dir() {
+        return Err(crate::ErrorKind::InputError(format!(
+            "Папка инстанса '{}' не найдена: {}",
+            instance_name,
+            instance_folder.display()
+        ))
+        .into());
+    }
+
+    // иконка — не повод отменять весь импорт
+    let icon = match row.icon_path {
+        Some(icon_path) => {
+            match import::recache_icon(data_dir.join(icon_path)).await {
+                Ok(icon) => icon,
+                Err(error) => {
+                    tracing::warn!("Skipping icon of imported Modrinth instance: {error}");
+                    None
+                }
+            }
+        }
+        None => None,
     };
 
     let description = CreatePackDescription {
@@ -146,7 +203,6 @@ pub async fn import_modrinth_app_instance(
     )
     .await?;
 
-    let instance_folder = base_path.join("profiles").join(row.path);
     let state = State::get().await?;
     finish_import(
         instance_id,

@@ -165,6 +165,16 @@ fn main() {
 
     tracing::info!("Initialized tracing subscriber. Loading ModLEX App!"); // MODLEX: rebrand
 
+    // Рабочие потоки tokio по умолчанию имеют стек 2 МБ, а /STACK из .cargo/config.toml относится
+    // только к главному потоку. В debug-сборке глубокие async-цепочки (скачивание библиотек Minecraft при
+    // установке сборки) переполняли его → STATUS_STACK_OVERFLOW. Даём потокам тот же размер, что главному.
+    let async_runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_stack_size(16 * 1024 * 1024)
+        .build()
+        .expect("failed to build async runtime");
+    tauri::async_runtime::set(async_runtime.handle().clone());
+
     let mut builder = tauri::Builder::default();
 
     #[cfg(feature = "updater")]

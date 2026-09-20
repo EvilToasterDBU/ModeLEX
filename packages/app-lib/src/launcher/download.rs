@@ -382,7 +382,8 @@ fn missing_initial_minecraft_bytes(
         )?)
 }
 
-#[tracing::instrument(skip(st, version))]
+// reporter/progress не пишем в span: их Debug — весь журнал установки, он дублировался в каждой строке лога
+#[tracing::instrument(skip(st, version, reporter))]
 pub async fn download_minecraft(
     st: &State,
     version: &GameVersionInfo,
@@ -642,7 +643,7 @@ pub async fn download_assets_index(
     Ok(res)
 }
 
-#[tracing::instrument(skip(st, index))]
+#[tracing::instrument(skip(st, index, progress))]
 
 pub async fn download_assets(
     st: &State,
@@ -737,7 +738,7 @@ pub async fn download_assets(
     Ok(())
 }
 
-#[tracing::instrument(skip(st, libraries))]
+#[tracing::instrument(skip(st, libraries, progress))]
 #[allow(clippy::too_many_arguments)]
 pub async fn download_libraries(
     st: &State,

@@ -36,6 +36,8 @@ jobs:
     env:
       VITE_STRIPE_PUBLISHABLE_KEY: pk_live_51JbFxJJygY5LJFfKLVVldb10HlLt24p421OWRsTOWc5sXYFOnFUXWieSc6HD3PHo25ktx8db1WcHr36XGFvZFVUz00V9ixrCs5
       RUSTC_WRAPPER: 'sccache'
+      ELYBY_CLIENT_ID: ${{ secrets.ELYBY_CLIENT_ID }}
+      ELYBY_CLIENT_SECRET: ${{ secrets.ELYBY_CLIENT_SECRET }}
     strategy:
       fail-fast: false
       matrix:
@@ -127,11 +129,8 @@ jobs:
           dasel put -f packages/app-lib/Cargo.toml -t string -v "${APP_VERSION#v}" 'package.version'
           dasel put -f apps/app-frontend/package.json -t string -v "${APP_VERSION#v}" 'version'
 
-      - name: Write packages/app-lib/.env
-        shell: bash
-        env:
-          APP_LIB_DOTENV: ${{ secrets.APP_LIB_DOTENV }}
-        run: printf '%s' "$APP_LIB_DOTENV" > packages/app-lib/.env
+      - name: Configure app endpoints
+        run: cp packages/app-lib/.env.prod packages/app-lib/.env
 
       - name: Install dependencies
         run: pnpm install
@@ -201,6 +200,8 @@ jobs:
     env:
       RUSTC_WRAPPER: sccache
       VITE_STRIPE_PUBLISHABLE_KEY: pk_live_51JbFxJJygY5LJFfKLVVldb10HlLt24p421OWRsTOWc5sXYFOnFUXWieSc6HD3PHo25ktx8db1WcHr36XGFvZFVUz00V9ixrCs5
+      ELYBY_CLIENT_ID: ${{ secrets.ELYBY_CLIENT_ID }}
+      ELYBY_CLIENT_SECRET: ${{ secrets.ELYBY_CLIENT_SECRET }}
 
     steps:
       - name: Check out code
@@ -256,11 +257,8 @@ jobs:
           dasel put -f packages/app-lib/Cargo.toml -t string -v "${APP_VERSION#v}" 'package.version'
           dasel put -f apps/app-frontend/package.json -t string -v "${APP_VERSION#v}" 'version'
 
-      - name: Write packages/app-lib/.env
-        shell: bash
-        env:
-          APP_LIB_DOTENV: ${{ secrets.APP_LIB_DOTENV }}
-        run: printf '%s' "$APP_LIB_DOTENV" > packages/app-lib/.env
+      - name: Configure app endpoints
+        run: cp packages/app-lib/.env.prod packages/app-lib/.env
 
       - name: Install dependencies
         run: pnpm install

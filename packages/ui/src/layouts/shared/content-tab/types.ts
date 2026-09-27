@@ -37,6 +37,8 @@ export type ContentSourceKind =
 	| 'imported_modpack'
 	| 'shared_instance'
 
+export type ExternalContentSource = 'modrinth' | 'curseforge'
+
 export interface ContentActionWarning {
 	admonitionHeader: string
 	admonitionBody: string
@@ -58,6 +60,7 @@ export interface ContentCardTableItem {
 	versionLink?: string | RouteLocationRaw
 	owner?: ContentOwner
 	source?: ContentSource
+	externalSource?: ExternalContentSource
 	external?: boolean
 	enabled?: boolean
 	locked?: boolean
@@ -109,6 +112,8 @@ export interface ContentItem extends Omit<
 	environment?: Labrinth.Projects.v3.Environment
 	pack_client_retained?: boolean
 	pack_client_depends?: boolean
+	cf_mod_id?: number
+	external_source?: ExternalContentSource | null
 	installing?: boolean
 	installProgress?: number | null
 	source_kind?: ContentSourceKind | null

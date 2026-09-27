@@ -8,7 +8,7 @@ use crate::state::instances::{
 };
 use crate::state::{
     CacheValue, CachedEntry, CachedFile, CachedFileHash, CachedFileUpdate,
-    Credentials, DefaultPage, DependencyType, DeviceToken, DeviceTokenKey,
+    AccountKind, Credentials, DefaultPage, DependencyType, DeviceToken, DeviceTokenKey,
     DeviceTokenPair, FileType, Hooks, InstanceInstallStage,
     LauncherFeatureVersion, MemorySettings, ModrinthCredentials,
     ReleaseChannel, TeamMember, Theme, VersionFile, WindowSize,
@@ -122,6 +122,14 @@ where
         {
             let minecraft_users_len = minecraft_auth.users.len();
             for (uuid, legacy_credentials) in minecraft_auth.users {
+                let kind = if legacy_credentials.access_token == "null"
+                    && legacy_credentials.refresh_token == "null"
+                {
+                    AccountKind::Offline
+                } else {
+                    AccountKind::Microsoft
+                };
+
                 Credentials {
                     offline_profile: MinecraftProfile {
                         id: legacy_credentials.id,
@@ -133,6 +141,7 @@ where
                     expires: legacy_credentials.expires,
                     active: minecraft_auth.default_user == Some(uuid)
                         || minecraft_users_len == 1,
+                    kind,
                 }
                 .upsert(exec)
                 .await?;

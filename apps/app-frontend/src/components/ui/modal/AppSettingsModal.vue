@@ -37,6 +37,7 @@ import BehaviorSettings from '@/components/ui/settings/display/BehaviorSettings.
 import FeatureFlagSettings from '@/components/ui/settings/display/FeatureFlagSettings.vue'
 import FeaturesSettings from '@/components/ui/settings/display/FeaturesSettings.vue'
 import LanguageSettings from '@/components/ui/settings/display/LanguageSettings.vue'
+import ModLexSettings from '@/components/ui/settings/ModLexSettings.vue'
 import InstancesSyncedSettings from '@/components/ui/settings/instances/instances-synced-settings/index.vue'
 import JavaSettings from '@/components/ui/settings/instances/JavaSettings.vue'
 import ResourceManagementSettings from '@/components/ui/settings/instances/ResourceManagementSettings.vue'
@@ -169,6 +170,15 @@ const tabs = [
 		category: tabCategories.instances,
 		icon: MicrochipIcon,
 		content: ResourceManagementSettings,
+	},
+	{
+		name: defineMessage({
+			id: 'app.settings.tabs.modlex',
+			defaultMessage: 'ModLEX',
+		}),
+		category: tabCategories.display,
+		icon: ModrinthIcon,
+		content: ModLexSettings,
 	},
 ]
 
@@ -312,7 +322,7 @@ const messages = defineMessages({
 	},
 	appVersion: {
 		id: 'app.settings.app-version',
-		defaultMessage: 'Modrinth App {version}',
+		defaultMessage: 'ModLEX App {version}',
 	},
 	macos: {
 		id: 'app.settings.operating-system.macos',

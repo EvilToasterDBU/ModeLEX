@@ -1,3 +1,4 @@
+//apps\app\src\api\mod.rs
 use serde::ser::SerializeStruct;
 use serde::{Serialize, Serializer};
 use thiserror::Error;
@@ -20,12 +21,14 @@ pub mod tags;
 mod thumbnails;
 pub mod users;
 pub mod utils;
+//modlex
+pub mod curseforge;
+//modlex
 
-pub mod ads;
-#[cfg(target_os = "macos")]
-mod ads_occlusion_macos;
-#[cfg(windows)]
-mod ads_occlusion_windows;
+//#[cfg(target_os = "macos")]
+//mod ads_occlusion_macos;
+//#[cfg(windows)]
+//mod ads_occlusion_windows;
 pub mod cache;
 pub mod files;
 pub mod friends;

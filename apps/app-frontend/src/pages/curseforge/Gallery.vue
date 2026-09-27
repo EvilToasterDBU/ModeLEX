@@ -1,0 +1,292 @@
+<template>
+	<div class="gallery">
+		<Card v-for="(image, index) in filteredGallery" :key="image.url" class="gallery-item">
+			<a @click="expandImage(image, index)">
+				<img :src="image.url" :alt="image.title" class="gallery-image" />
+			</a>
+			<div class="gallery-body">
+				<h3>{{ image.title }}</h3>
+				{{ image.description }}
+			</div>
+		</Card>
+	</div>
+	<div v-if="expandedGalleryItem" class="expanded-image-modal" @click="hideImage">
+		<div class="content">
+			<img
+				class="image"
+				:class="{ 'zoomed-in': zoomedIn }"
+				:src="expandedGalleryItem.url"
+				:alt="expandedGalleryItem.title ? expandedGalleryItem.title : 'gallery-image'"
+				@click.stop="() => {}"
+			/>
+
+			<div class="floating" @click.stop="() => {}">
+				<div class="text">
+					<h2 v-if="expandedGalleryItem.title">
+						{{ expandedGalleryItem.title }}
+					</h2>
+					<p v-if="expandedGalleryItem.description">
+						{{ expandedGalleryItem.description }}
+					</p>
+				</div>
+				<div class="controls">
+					<div class="buttons">
+						<IconButton label="Close image" class="close" @click="hideImage">
+							<XIcon aria-hidden="true" />
+						</IconButton>
+						<ButtonLink
+							type="quiet"
+							class="open btn icon-only"
+							aria-label="Open image in browser"
+							target="_blank"
+							:href="expandedGalleryItem.url"
+						>
+							<ExternalIcon aria-hidden="true" />
+						</ButtonLink>
+						<IconButton
+							:label="zoomedIn ? 'Zoom out' : 'Zoom in'"
+							@click="zoomedIn = !zoomedIn"
+						>
+							<ExpandIcon v-if="!zoomedIn" aria-hidden="true" />
+							<ContractIcon v-else aria-hidden="true" />
+						</IconButton>
+						<IconButton
+							v-if="filteredGallery.length > 1"
+							label="Previous image"
+							class="previous"
+							@click="previousImage"
+						>
+							<LeftArrowIcon aria-hidden="true" />
+						</IconButton>
+						<IconButton
+							v-if="filteredGallery.length > 1"
+							label="Next image"
+							class="next"
+							@click="nextImage"
+						>
+							<RightArrowIcon aria-hidden="true" />
+						</IconButton>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</template>
+
+<script setup>
+import {
+	ContractIcon,
+	ExpandIcon,
+	ExternalIcon,
+	LeftArrowIcon,
+	RightArrowIcon,
+	XIcon,
+} from '@modrinth/assets'
+import { ButtonLink, Card, IconButton } from '@modrinth/ui'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+
+import { trackEvent } from '@/helpers/analytics'
+
+const props = defineProps({
+	project: {
+		type: Object,
+		default: () => ({}),
+	},
+})
+
+const filteredGallery = computed(() => props.project.gallery ?? [])
+
+const expandedGalleryItem = ref(null)
+const expandedGalleryIndex = ref(0)
+const zoomedIn = ref(false)
+
+const hideImage = () => {
+	expandedGalleryItem.value = null
+}
+
+const nextImage = () => {
+	expandedGalleryIndex.value++
+	if (expandedGalleryIndex.value >= filteredGallery.value.length) {
+		expandedGalleryIndex.value = 0
+	}
+	expandedGalleryItem.value = filteredGallery.value[expandedGalleryIndex.value]
+	trackEvent('GalleryImageNext', {
+		project_id: props.project.id,
+		url: expandedGalleryItem.value.url,
+	})
+}
+
+const previousImage = () => {
+	expandedGalleryIndex.value--
+	if (expandedGalleryIndex.value < 0) {
+		expandedGalleryIndex.value = filteredGallery.value.length - 1
+	}
+	expandedGalleryItem.value = filteredGallery.value[expandedGalleryIndex.value]
+	trackEvent('GalleryImagePrevious', {
+		project_id: props.project.id,
+		url: expandedGalleryItem.value,
+	})
+}
+
+const expandImage = (item, index) => {
+	expandedGalleryItem.value = item
+	expandedGalleryIndex.value = index
+	zoomedIn.value = false
+
+	trackEvent('GalleryImageExpand', {
+		project_id: props.project.id,
+		url: item.url,
+	})
+}
+
+function keyListener(e) {
+	if (expandedGalleryItem.value) {
+		if (e.key === 'Escape') {
+			e.preventDefault()
+			hideImage()
+		} else if (e.key === 'ArrowLeft') {
+			e.preventDefault()
+			previousImage()
+		} else if (e.key === 'ArrowRight') {
+			e.preventDefault()
+			nextImage()
+		}
+	}
+}
+
+onMounted(() => {
+	document.addEventListener('keydown', keyListener)
+})
+
+onUnmounted(() => {
+	document.removeEventListener('keydown', keyListener)
+})
+</script>
+
+<style scoped lang="scss">
+.gallery {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+	width: 100%;
+	gap: 1rem;
+}
+
+.gallery-item {
+	padding: 0;
+	overflow: hidden;
+	margin: 0;
+	display: flex;
+	flex-direction: column;
+
+	.gallery-image {
+		width: 100%;
+		aspect-ratio: 2/1;
+		object-fit: cover;
+		object-position: center;
+	}
+
+	.gallery-body {
+		flex-grow: 1;
+		padding: 1rem;
+	}
+}
+
+.expanded-image-modal {
+	position: fixed;
+	z-index: 11;
+	overflow: auto;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background-color: #000000;
+	background-color: rgba(0, 0, 0, 0.7);
+	display: flex;
+	justify-content: center;
+	align-items: center;
+
+	.content {
+		position: relative;
+		width: calc(100vw - 2 * var(--gap-lg));
+		height: calc(100vh - 2 * var(--gap-lg));
+
+		.image {
+			position: absolute;
+			left: 50%;
+			top: 50%;
+			transform: translate(-50%, -50%);
+			max-width: calc(100vw - 2 * var(--gap-lg));
+			max-height: calc(100vh - 2 * var(--gap-lg));
+			border-radius: var(--radius-lg);
+
+			&.zoomed-in {
+				object-fit: cover;
+				width: auto;
+				height: calc(100vh - 2 * var(--gap-lg));
+				max-width: calc(100vw - 2 * var(--gap-lg));
+			}
+		}
+		.floating {
+			position: absolute;
+			left: 50%;
+			transform: translateX(-50%);
+			bottom: var(--gap-md);
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: var(--gap-md);
+			transition: opacity 0.25s ease-in-out;
+			opacity: 1;
+			padding: 2rem 2rem 0 2rem;
+
+			&:not(&:hover) {
+				opacity: 0.4;
+				.text {
+					transform: translateY(2.5rem) scale(0.8);
+					opacity: 0;
+				}
+				.controls {
+					transform: translateY(0.25rem) scale(0.9);
+				}
+			}
+
+			.text {
+				display: flex;
+				flex-direction: column;
+				max-width: 40rem;
+				transition:
+					opacity 0.25s ease-in-out,
+					transform 0.25s ease-in-out;
+				text-shadow: 1px 1px 10px #000000d4;
+				margin-bottom: 0.25rem;
+				gap: 0.5rem;
+
+				h2 {
+					color: var(--dark-color-base);
+					font-size: 1.25rem;
+					text-align: center;
+					margin: 0;
+				}
+
+				p {
+					color: var(--dark-color-base);
+					margin: 0;
+				}
+			}
+			.controls {
+				background-color: var(--color-raised-bg);
+				padding: var(--gap-md);
+				border-radius: var(--radius-md);
+				transition:
+					opacity 0.25s ease-in-out,
+					transform 0.25s ease-in-out;
+			}
+		}
+	}
+}
+
+.buttons {
+	display: flex;
+	gap: 0.5rem;
+}
+</style>

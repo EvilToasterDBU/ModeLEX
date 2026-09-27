@@ -21,6 +21,8 @@ pub struct ContentItem {
     pub update_version_id: Option<String>,
     pub date_added: Option<String>,
     pub source_kind: Option<ContentSourceKind>,
+    pub external_source: Option<String>,
+    pub cf_mod_id: Option<u32>,
     pub embedded_metadata: Option<EmbeddedContentMetadata>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub synced_pack: Option<SyncedPackInfo>,

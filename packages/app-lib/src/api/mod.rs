@@ -1,4 +1,5 @@
 //! API for interacting with Theseus
+//packages\app-lib\src\api\mod.rs
 pub mod cache;
 pub mod friends;
 pub mod handler;
@@ -6,6 +7,7 @@ pub mod instance;
 pub mod jre;
 pub mod logs;
 pub mod metadata;
+pub mod elyby_auth;
 pub mod minecraft_auth;
 pub mod minecraft_skins;
 pub mod mr_auth;
@@ -18,6 +20,9 @@ pub mod settings;
 pub mod tags;
 pub mod users;
 pub mod worlds;
+//modlex
+pub mod curseforge;
+//modlex
 
 pub mod data {
     pub use crate::state::{

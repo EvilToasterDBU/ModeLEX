@@ -14,6 +14,9 @@ fn main() {
                     .commands(&[
                         "check_reachable",
                         "login",
+                        "offline_login",
+                        "elyby_login",
+                        "cancel_elyby_login",
                         "remove_user",
                         "get_default_user",
                         "set_default_user",
@@ -460,6 +463,25 @@ fn main() {
                         "get_server_status",
                         "start_join_singleplayer_world",
                         "start_join_server",
+                    ])
+                    .default_permission(
+                        DefaultPermissionRule::AllowAllCommands,
+                    ),
+            )
+            .plugin(
+                "curseforge",
+                InlinedPlugin::new()
+                    .commands(&[
+                        "cf_search",
+                        "cf_get_mod",
+                        "cf_get_files",
+                        "cf_install_mod",
+                        "cf_remove_mod",
+                        "cf_install_modpack",
+                        "cf_get_description",
+                        "cf_get_categories",
+                        "cf_get_mod_details",
+                        "cf_clear_cache",
                     ])
                     .default_permission(
                         DefaultPermissionRule::AllowAllCommands,

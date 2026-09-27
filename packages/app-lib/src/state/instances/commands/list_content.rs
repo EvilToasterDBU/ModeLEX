@@ -11,9 +11,9 @@ use crate::state::instances::{
 use crate::state::{
     CacheBehaviour, CachedEntry, CachedFile, ContentFile, ContentItem,
     ContentItemOwner, ContentItemProject, ContentItemVersion, Dependency,
-    LinkedModpackInfo, ModLoader, Organization, OwnerType, Project,
-    ProjectType, ReleaseChannel, TeamMember, Version, VersionEnvironment,
-    VersionV3,
+    EmbeddedContentMetadata, LinkedModpackInfo, ModLoader, Organization,
+    OwnerType, Project, ProjectType, ReleaseChannel, TeamMember, Version,
+    VersionEnvironment, VersionV3,
 };
 use crate::util::fetch::{DownloadMeta, DownloadReason, FetchSemaphore};
 use async_zip::tokio::read::fs::ZipFileReader;
@@ -613,6 +613,8 @@ pub(crate) async fn dependencies_to_content_items(
                 update_version_id: None,
                 date_added: None,
                 source_kind: None,
+                external_source: None,
+                cf_mod_id: None,
                 embedded_metadata: None,
             })
         })
@@ -991,6 +993,8 @@ async fn content_files_to_content_items(
             instance, loader, files, state,
         )
         .await?;
+    let curseforge_sidecar =
+        crate::api::curseforge::read_sidecar(&instance.id).await;
     let instance_path = state.directories.instances_dir().join(&instance.path);
     let paths = files
         .iter()
@@ -1029,6 +1033,7 @@ async fn content_files_to_content_items(
             let owner = project.and_then(|project| {
                 resolve_owner(project, &meta.teams, &meta.organizations)
             });
+            let curseforge_meta = curseforge_sidecar.0.get(&file.hash);
 
             ContentItem {
                 synced_pack: None,
@@ -1057,7 +1062,18 @@ async fn content_files_to_content_items(
                 update_version_id: file.update_version_id.clone(),
                 date_added: modification_times[index].clone(),
                 source_kind: file.source_kind,
-                embedded_metadata: embedded_metadata.get(&file.hash).cloned(),
+                external_source: curseforge_meta.map(|_| "curseforge".to_string()),
+                cf_mod_id: curseforge_meta.map(|metadata| metadata.mod_id),
+                embedded_metadata: embedded_metadata
+                    .get(&file.hash)
+                    .cloned()
+                    .or_else(|| {
+                        curseforge_meta.map(|metadata| EmbeddedContentMetadata {
+                            name: Some(metadata.title.clone()),
+                            version: Some(metadata.version.clone()),
+                            icon_path: None,
+                        })
+                    }),
             }
         })
         .collect::<Vec<_>>();

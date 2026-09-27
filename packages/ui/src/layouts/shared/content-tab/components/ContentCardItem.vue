@@ -33,6 +33,7 @@ import type {
 	ContentCardVersion,
 	ContentOwner,
 	ContentSource,
+	ExternalContentSource,
 } from '../types'
 
 const { formatMessage } = useVIntl()
@@ -69,6 +70,7 @@ interface Props {
 	versionLink?: string | RouteLocationRaw
 	owner?: ContentOwner
 	source?: ContentSource
+	externalSource?: ExternalContentSource
 	external?: boolean
 	enabled?: boolean
 	locked?: boolean
@@ -99,6 +101,7 @@ const props = withDefaults(defineProps<Props>(), {
 	versionLink: undefined,
 	owner: undefined,
 	source: undefined,
+	externalSource: undefined,
 	external: false,
 	enabled: undefined,
 	locked: false,
@@ -237,6 +240,15 @@ const installTooltip = computed(() => {
 						>
 							{{ projectTitle }}
 						</AutoLink>
+						<span
+							v-if="externalSource === 'curseforge'"
+							v-tooltip="'CurseForge'"
+							class="inline-flex size-4 shrink-0 items-center justify-center"
+						>
+							<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+								<path d="M8 6h10l-3 7h5L9 28l3-11H7L8 6z" fill="#F16436" />
+							</svg>
+						</span>
 						<slot name="title-badges" />
 						<span
 							v-if="synced && hideActions"

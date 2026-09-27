@@ -1,0 +1,88 @@
+<template>
+	<div>
+		<ProjectPageVersions :loaders="loaders"
+							 :game-versions="gameVersions"
+							 :versions="versions"
+							 :project="project"
+							 :version-link="(version) => `/curseforge/${project.id}/version/${version.id}`">
+			<template #actions="{ version }">
+				<IconButton
+					v-tooltip="'Install'"
+					label="Install"
+					type="quiet"
+					:disabled="installing || isInstalledVersion(version)"
+					@click.stop="install(version.id)"
+				>
+					<DownloadIcon v-if="!installed" />
+					<RefreshCwIcon v-else-if="!isInstalledVersion(version)" />
+					<CheckIcon v-else />
+				</IconButton>
+				<ButtonLink
+					aria-label="Open in browser"
+					v-tooltip="'Open in browser'"
+					type="quiet"
+					:href="`https://www.curseforge.com/minecraft/mc-mods/${project.slug}/files/${version.id}`"
+					target="_blank"
+				>
+					<ExternalIcon />
+				</ButtonLink>
+			</template>
+		</ProjectPageVersions>
+	</div>
+</template>
+
+<script setup>
+	import { CheckIcon, DownloadIcon, ExternalIcon, RefreshCwIcon } from '@modrinth/assets'
+	import {
+	ButtonLink,
+	IconButton,
+	injectNotificationManager,
+	ProjectPageVersions,
+	} from '@modrinth/ui'
+	import { ref } from 'vue'
+
+	import { get_game_versions, get_loaders } from '@/helpers/tags.js'
+
+	const props = defineProps({
+	project: {
+	type: Object,
+	default: () => {},
+	},
+	versions: {
+	type: Array,
+	required: true,
+	},
+	install: {
+	type: Function,
+	required: true,
+	},
+	installed: {
+	type: Boolean,
+	default: null,
+	},
+	installing: {
+	type: Boolean,
+	default: false,
+	},
+	instance: {
+	type: Object,
+	default: null,
+	},
+	installedVersion: {
+	type: String,
+	default: null,
+	},
+	})
+
+	const { handleError } = injectNotificationManager()
+
+	// CfFile.id — число, installedVersion приходит строкой, поэтому сравниваем через String()
+	function isInstalledVersion(version) {
+	return props.installed && String(version.id) === props.installedVersion
+	}
+
+	const [loaders, gameVersions] = await Promise.all([
+	get_loaders().catch(handleError).then(ref),
+	get_game_versions().catch(handleError).then(ref),
+	])
+</script>

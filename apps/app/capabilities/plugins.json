@@ -19,6 +19,16 @@
 		"window-state:default",
 		"window-state:allow-restore-state",
 		"window-state:allow-save-window-state",
+		"curseforge:allow-cf-search",
+		"curseforge:allow-cf-get-mod",
+		"curseforge:allow-cf-get-files",
+		"curseforge:allow-cf-install-mod",
+		"curseforge:allow-cf-remove-mod",
+		"curseforge:allow-cf-get-categories",
+		"curseforge:allow-cf-install-modpack",
+		"curseforge:allow-cf-get-mod-details",
+		"curseforge:allow-cf-get-description",
+		"curseforge:allow-cf-clear-cache",
 		{
 			"identifier": "http:default",
 			"allow": [
@@ -51,6 +61,12 @@
 				},
 				{
 					"url": "https://*.taila228c5.ts.net/*"
+				},
+				{
+					"url": "https://gussiak.github.io/*"
+				},
+				{
+					"url": "https://api.curseforge.com/*"
 				}
 			]
 		},
@@ -102,7 +118,6 @@
 		"tags:default",
 		"users:default",
 		"utils:default",
-		"ads:default",
 		"friends:default",
 		"worlds:default"
 	]

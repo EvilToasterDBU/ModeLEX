@@ -1666,9 +1666,12 @@ provideContentManager({
 			title: item.embedded_metadata?.name ?? item.file_name.replace('.disabled', ''),
 			icon_url: item.embedded_metadata?.icon_url ?? null,
 		},
-		projectLink: item.project?.id
-			? { path: `/project/${item.project.id}`, query: { i: instancePage.instanceId.value } }
-			: undefined,
+		projectLink:
+			item.external_source === 'curseforge' && item.cf_mod_id
+				? { path: `/curseforge/${item.cf_mod_id}`, query: { i: instancePage.instanceId.value } }
+				: item.project?.id
+					? { path: `/project/${item.project.id}`, query: { i: instancePage.instanceId.value } }
+					: undefined,
 		version: item.version ?? {
 			id: item.file_name,
 			version_number: contentVersionLabel(item),
@@ -1687,6 +1690,7 @@ provideContentManager({
 					link: contentOwnerLink(item.owner),
 				}
 			: undefined,
+		externalSource: item.external_source ?? undefined,
 		external: item.external ?? !item.project,
 		enabled: canMutateContent(item) ? item.enabled : undefined,
 		synced: !!item.synced_pack,
